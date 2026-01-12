@@ -235,7 +235,7 @@ function App() {
     if (field === 'icon') {
       const iconPath = extractIconPath(value);
       if (iconPath) {
-        setIconPreview(`/dat/Icon/${iconPath}.png`);
+        setIconPreview(`/Icon/${iconPath}.png`);
       }
     }
   };
@@ -495,7 +495,7 @@ function App() {
     if (relatedData?.icon) {
       const iconPath = extractIconPath(relatedData.icon);
       if (iconPath) {
-        return `/dat/Icon/${iconPath}.png`;
+        return `/Icon/${iconPath}.png`;
       }
     }
     return null;
