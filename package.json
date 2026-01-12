@@ -1,0 +1,42 @@
+{
+  "name": "l2horizon-scripts",
+  "version": "1.0.0",
+  "description": "Lineage 2 Classic data management scripts and editor",
+  "main": "index.js",
+  "license": "MIT",
+  "author": "huzaro",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "server": "node server.js",
+    "start": "concurrently \"npm run server\" \"npm run dev\"",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "lineage2",
+    "l2",
+    "classic",
+    "data",
+    "editor",
+    "tools"
+  ],
+  "dependencies": {
+    "@emotion/react": "^11.11.3",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.15.10",
+    "@mui/material": "^5.15.10",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^9.2.1",
+    "vite": "^5.1.0"
+  }
+}

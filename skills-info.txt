@@ -1,0 +1,824 @@
+Skill guide:
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+All tags must open and close.
+Tags that can fit in one line can be closed inside themselves.
+
+Example:
+<add .....> ..... </add>
+<add ...../>
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+format of xml-files:
+
+<?xml version='1.0' encoding='utf-8'?>
+<list>
+<skill id="1312" levels="1" name="Fishing">
+<set name="weaponsAllowed" val="8192"/>
+<set name="mpConsume" val="1"/>
+<set name="reuseDelay" val="1000"/>
+<set name="target" val="TARGET_SELF"/>
+<set name="skillType" val="FISHING"/>
+<set name="operateType" val="OP_ACTIVE"/>
+<for>
+</for>
+</skill>
+<skill id="1313" levels="27" name="Pumping">
+<table name="#power"> 19 28 38 50 55 60 65 70 86 92 97 103 109 115 136 143 149 156 187 195 202 245 253 262 271 312 321 </table>
+<set name="weaponsAllowed" val="8192"/>
+<set name="mpConsume" val="2"/>
+<set name="power" val="#power"/>
+<set name="reuseDelay" val="2000"/>
+<set name="target" val="TARGET_SELF"/>
+<set name="skillType" val="PUMPING"/>
+<set name="operateType" val="OP_ACTIVE"/>
+<for>
+</for>
+</skill>
+</list>
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+1. <?xml version='1.0' encoding='utf-8'?>
+Start of file header
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+2. <list>
+The beginning of the list of skills, at the end of the file you need to close it with a tag </list>
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+3. <skill id="1312" levels="1" name="Fishing">
+The beginning of the skill description. After all tags must end </skill>
+skill id - unique id for all skills (both for mobs and characters)
+levels - the maximum number of levels for this skill
+name - his name
+
+Description of skills:
+A) <table name="#power"> 19 28 38 50 </table>
+Table. When referencing a parameter #power, the value corresponding to the current skill level will be taken.
+There can be several tables. Values can be whole or fractional and must be separated by spaces.
+The values should be as many as the levels of this skill.
+
+B) <set name="COMMAND" val="VALUE"/>
+
+Mandatory parameters for each skill:
+mpConsume - how much mana does it take
+reuseDelay - recharge time
+target - who could be the target
+skillType - skill type
+operateType - active, passive, switchable (toggle)
+
+List of parameters:​
+COMMAND: canLearn - (value = "" - This skill cannot be learned. default - do not prescribe)
+castRange: Distance from caster to target for skill activation (default: 40).
+activateRate: Chance (in percent) for skill effect to trigger (-1 if not applicable).
+absorbPart: Fraction of damage absorbed by caster (e.g., 0.2 = 20%).
+baseBlowRate: Base chance for a critical hit (blow) effect.
+coolTime: Time (ms) before skill can be reused after casting starts.
+hitTime: Time (ms) to complete skill casting animation.
+reuseDelay: Cooldown time (ms) before skill can be used again.
+skillRadius: Area of effect radius for AoE skills (default: 80).
+effectiveRange: Maximum distance for skill effect (default: castRange + 400/500).
+power: Base power of the skill (damage or effect strength).
+powerPvP: Power modifier for PvP scenarios (defaults to power if 0).
+powerPvE: Power modifier for PvE scenarios (defaults to power if 0).
+mpConsume1: MP consumed before casting starts.
+mpConsume2: MP consumed during casting.
+hpConsume: HP consumed when using the skill.
+energyConsume: Energy (e.g., mana or other resource) consumed.
+soulsConsume: Number of souls required for skill use.
+lethal1: Chance for first lethal effect (e.g., instant kill or heavy damage).
+lethal2: Chance for second lethal effect (if applicable).
+effectPoint: Points determining skill's impact (positive for buffs, negative for debuffs).
+skillType: Type of skill (e.g., BUFF, DEBUFF, PDAM, MDAM).
+magicType: Magic type (PHYSIC, MAGIC, SPECIAL, MUSIC).
+targetType: Target selection (e.g., TARGET_ONE, TARGET_AURA, TARGET_PARTY).
+operateType: Skill operation (OP_ACTIVE, OP_PASSIVE, OP_TOGGLE).
+traitType: Skill trait (e.g., BLEED, POISON) for resistances.
+saveVs: Base stat (e.g., STR, INT) for saving throw calculations.
+skillNextAction: Action after skill use (e.g., ATTACK, NONE).
+element: Elemental attribute (e.g., FIRE, WATER, NONE).
+elementPower: Power of elemental effect (default: 20 if element is not NONE).
+flyType: Movement type for skill (e.g., CHARGE, NONE).
+flyRadius: Distance for movement-based skills (default: 200).
+flyToBack: If true, skill moves target backward.
+isOffensive: True if skill is harmful (e.g., damage or debuff).
+isPvpSkill: True if skill is designed for PvP.
+isPvm: True if skill is designed for PvE.
+isForceUse: True if skill can be used regardless of target status.
+isCancelable: True if skill can be canceled (default: true).
+isReflectable: True if skill can be reflected (default: true).
+isShieldignore: True if skill ignores shields.
+isOverhit: True if skill can deal overhit damage.
+isSuicideAttack: True if skill kills the caster.
+isSoulBoost: True if skill consumes souls for extra effect.
+isChargeBoost: True if skill benefits from charge effects.
+isUsingWhileCasting: True if skill can be used during another cast.
+isIgnoreResists: True if skill ignores target resistances.
+isIgnoreInvul: True if skill ignores invulnerability.
+isTrigger: True if skill is a trigger for other effects.
+isNotAffectedByMute: True if skill works under silence effects.
+isSkillTimePermanent: True if skill cast time is unaffected by speed.
+isReuseDelayPermanent: True if cooldown is unaffected by modifiers.
+isBehind: True if skill requires caster to be behind target.
+isCorpse: True if skill targets a corpse.
+isUndeadOnly: True if skill only affects undead targets.
+isUseSS: Soulshot/Spiritshot usage (TRUE, FALSE, DEFAULT).
+isCommon: True if skill is shared across classes.
+isItemHandler: True if skill is tied to an item.
+isAltUse: True if skill has alternative usage (e.g., not standard combat).
+isNewbie: True if skill is for low-level players.
+isPreservedOnDeath: True if skill persists after death.
+isHeroic: True if skill is heroic (special or rare).
+isSaveable: True if skill can be saved (default: true).
+isMultiClassSkill: True if skill is shared across multiple classes.
+isFishingSkill: True if skill is related to fishing.
+isProvoke: True if skill taunts or provokes target.
+isCubicSkill: True if skill is a cubic (summoned entity) skill.
+isSelfDispellable: True if skill can be dispelled by caster (default: true).
+isSlotNone: True if skill ignores buff slot limits.
+isSharedClassReuse: True if skill reuse is shared across classes.
+isIncreaseLevel: True if skill level can be increased.
+isCheckCanSee: True if skill requires line-of-sight check.
+itemConsume: Array of item quantities consumed by skill.
+itemConsumeId: Array of item IDs consumed by skill.
+referenceItemId: ID of talisman item used for MP consumption.
+referenceItemMpConsume: MP consumed by talisman item.
+negateSkill: ID of skill negated by this skill.
+negatePower: Power threshold for negation (default: max).
+skillInterruptTime: Time (ms) to interrupt target’s actions.
+delayedEffect: Delay (ms) before effect applies.
+cancelTarget: Chance to cancel target’s current action.
+minPledgeClass: Minimum pledge class required to use skill.
+minRank: Minimum rank required to use skill.
+weaponsAllowed: Bitmask of allowed weapon types.
+npcId: NPC ID associated with skill (if any).
+symbolId: Symbol ID for visual effects (if any).
+enchantLevelCount: Number of enchantment levels for skill.
+criticalRate: Critical hit chance modifier.
+secondSkill: ID of secondary skill triggered.
+name: Skill name (string).
+baseValues: Base values for skill calculations (string).
+icon: Icon file path for skill UI display.
+teachers: List of NPC IDs that teach the skill.
+canLearn: List of class IDs that can learn the skill.
+addedSkills: Array of additional skills granted by this skill.
+effectTemplates: Array of effect templates applied by skill.
+preCondition: Array of conditions required for skill use.
+Skill Type Descriptions​
+AGGRESSION: Provokes target to attack caster (PvE/PvP, AI).
+AIEFFECTS: Effects for NPCs, no aggression or flagging (AI).
+BALANCE: Balances HP within group or between targets.
+BEAST_FEED: Feeds pets or beasts.
+BLEED: Deals periodic bleed damage (PvP, offensive).
+BUFF: Enhances target’s stats (buff).
+BUFF_CHARGER: Increases charge for other skills.
+CALL: Summons character to caster (teleport).
+CLAN_GATE: Creates portal for clan members.
+COMBATPOINTHEAL: Restores CP (combat points).
+CONT: Toggle skill with continuous effect (on/off).
+CPDAM: Damages CP (combat points).
+CPHOT: Periodically restores CP.
+CRAFT: Used for item crafting.
+DEATH_PENALTY: Reduces or removes death penalty.
+DEBUFF: Applies negative effect (PvP, offensive).
+DELETE_HATE: Reduces target’s aggression (AI).
+DELETE_HATE_OF_ME: Removes target’s aggression toward caster (AI).
+DESTROY_SUMMON: Destroys summoned creatures (PvP, offensive).
+DEFUSE_TRAP: Disarms traps.
+DETECT_TRAP: Detects traps.
+DISCORD: Negative effect, NPC-only (PvM).
+DOT: Deals periodic damage (PvP, offensive).
+DRAIN: Deals damage and absorbs HP (offensive).
+DRAIN_SOUL: Absorbs souls for enhancement.
+EFFECT: Script-defined specific effects.
+EFFECTS_FROM_SKILLS: Applies effects from other skills.
+ENCHANT_ARMOR: Enchants armor.
+ENCHANT_WEAPON: Enchants weapon.
+FEED_PET: Feeds pet.
+FISHING: Skill for fishing.
+HARDCODED: Hard-coded effects.
+HARVESTING: Gathers resources from monsters (offensive).
+HEAL: Restores HP.
+HEAL_PERCENT: Restores percentage of HP.
+HOT: Periodically restores HP.
+LETHAL_SHOT: Deals high damage with lethal effect chance (offensive).
+LUCK: Increases luck (passive effect).
+MANADAM: Damages MP (PvP, offensive).
+MANAHEAL: Restores MP.
+MANAHEAL_PERCENT: Restores percentage of MP.
+MDAM: Deals magical damage (offensive).
+MDOT: Deals periodic magical damage (PvP, offensive).
+MPHOT: Periodically restores MP.
+MUTE: Blocks skill usage (PvP, offensive).
+DISMISS_AGATHION: Dismisses agathion (companion).
+NEGATE_EFFECTS: Removes specific effects (PvP).
+NEGATE_STATS: Lowers stats (PvP).
+ADD_PC_BANG: Adds PC Bang points.
+NOTDONE: Not implemented.
+NOTUSED: Not used.
+PARALYZE: Paralyzes target (PvP, offensive).
+PASSIVE: Passive skill, always active.
+PDAM: Deals physical damage (offensive).
+PET_SUMMON: Summons pet.
+POISON: Deals periodic poison damage (PvP, offensive).
+PUMPING: Fishing skill (increases catch).
+RECALL: Teleports group or character.
+REELING: Fishing skill (reels in fish).
+RESURRECT: Resurrects target.
+RIDE: Allows mounting a mount.
+ROOT: Immobilizes target (PvP, offensive).
+SHIFT_AGGRESSION: Shifts aggression to another target.
+SSEED: Skill for planting seeds.
+SLEEP: Puts target to sleep (PvP, offensive).
+SOULSHOT: Activates soulshot for attack boost (offensive).
+SOWING: Plants seeds on monster (AI, offensive).
+SPthealth: Restores SP (skill points).
+EXPHEAL: Restores EXP.
+SPIRITSHOT: Activates spiritshot for magic skills (offensive).
+SPOIL: Spoils monster, increasing drop (offensive).
+STEAL_BUFF: Steals buffs from target (PvP).
+STUN: Stuns target (PvP, offensive).
+SUMMON: Summons NPC or object.
+SUMMON_FLAG: Summons flag for siege.
+SUMMON_ITEM: Summons item.
+SWEEP: Collects loot from monster (offensive).
+TAKECASTLE: Captures castle.
+TAMECONTROL: Controls tamed creatures.
+TELEPORT_NPC: Teleports NPC (offensive).
+TRANSFORMATION: Transforms character.
+UNLOCK: Opens chests or doors.
+WATCHER_GAZE: Applies negative observation effect.
+Target Types:​
+TARGET_ALLY: Targets an ally (including caster).
+TARGET_AREA: Area around the target (AoE).
+TARGET_AREA_AIM_CORPSE: Area around a corpse.
+TARGET_AREA_CLAN: Area around a clan member.
+TARGET_AURA: Area around the caster (AoE).
+TARGET_PET_AURA: Area around the caster’s pet.
+TARGET_CHEST: Chest.
+TARGET_FEEDABLE_BEAST: Feedable beast.
+TARGET_CLAN: All clan members in range.
+TARGET_CLAN_ONLY: Clan members only (no allies).
+TARGET_CORPSE: NPC corpse.
+TARGET_CORPSE_PLAYER: Player corpse.
+TARGET_ENEMY_PET: Enemy’s pet.
+TARGET_ENEMY_SUMMON: Enemy’s summoned creature.
+TARGET_ENEMY_SERVITOR: Enemy’s servitor.
+TARGET_FLAGPOLE: Flag (e.g., for sieges).
+TARGET_COMMCHANNEL: Command channel members.
+TARGET_HOLY: Holy object (artifact).
+TARGET_ITEM: Item.
+TARGET_MULTIFACE: Cone-shaped area in front of caster.
+TARGET_MULTIFACE_AURA: Cone-shaped area around caster.
+TARGET_TUNNEL: Tunnel-shaped area between caster and target.
+TARGET_NONE: No target.
+TARGET_ONE: Single target.
+TARGET_OTHER: Other target (not caster).
+TARGET_OWNER: Owner (for pets/servitors).
+TARGET_PARTY: Party members.
+TARGET_PET: Caster’s pet.
+TARGET_SELF: Caster themselves.
+TARGET_SIEGE: Siege object (e.g., gate).
+TARGET_UNLOCKABLE: Unlockable object (door, chest).
+TARGET_ALLY_AND_PARTY: Allies and party members.
+
+C) <cond>...</cond>
+conditions for activating the skill. Not used in passives. If the skill is already activated, and the condition does not match, it does NOT turn off. conditions are checked for activation only.
+
+Examples of using:
+<cond msg="Too much hit points."><player percentHP="25"/></cond> (a message will be displayed)
+
+without message:
+<cond><player percentHP="25"/></cond> (25% hp)
+or
+<cond><player minHP="25"/></cond> (>25 hp)
+
+
+D) <for>...</for>
+a list of effects that are applied with an active skill or passive.
+Example:
+<!-- add value 2 to parameter MEN. -->
+<for>
+<add order="0x10" stat="MEN" val="2"/>
+</for>
+
+<!-- multiply the maxHP value by the value taken from the Tab-maxHP table and highlight the buff icon -->
+<for>
+<effect count="1" name="Buff" time="1200" val="0" stackOrder="#stack" stackType="hp_up">
+<mul order="0x50" stat="maxHp" val="#Tab-maxHp"/>
+</effect>
+</for>
+
+effects are added with words:
+<add - adding
+<mul - multiplying
+<set - set
+<sub - minus
+<div - divide
+
+order means the order of calculation. (order 0x08, 0x10, 0x30, 0x40, 0x50, 0x60)
+0x08 used for basic parameter setting
+0x10 used for basic parameter modification
+0x30 for parameter multipliers
+0x40 to add static bonuses to the parameter
+0x50 used for multipliers of base bonuses to the parameter
+0x60 to add static bonuses AFTER multipliers
+
+Characteristics​
+Hp/Cp/Mp
+maxHp (0-Infinity, init: 1.0) - Max health.
+Example: <add stat="maxHp" val="500"/> - +500 HP from armor.
+maxMp (0-Infinity, init: 1.0) - Max mana.
+Example: <mul stat="maxMp" val="1.2"/> - +20% mana from buff.
+maxCp (0-Infinity, init: 1.0) - Max combat points (CP).
+Example: <add stat="maxCp" val="300"/> - +300 CP from skill.
+Regeneration​
+regHp (0-Infinity, init: 0) - HP regeneration rate.
+Example: <mul stat="regHp" val="1.5"/> - +50% HP regen.
+regMp (0-Infinity, init: 0) - MP regeneration rate.
+Example: <add stat="regMp" val="10"/> - +10 MP/sec.
+regCp (0-Infinity, init: 0) - CP regeneration rate.
+Example: <mul stat="regCp" val="2"/> - x2 CP regen.
+Limits (for debuffs)​
+hpLimit (1-100, init: 100) - HP % limit.
+Example: <set stat="hpLimit" val="50"/> - HP capped at 50%.
+mpLimit (1-100, init: 100) - MP % limit.
+Example: <set stat="mpLimit" val="30"/> - MP capped at 30%.
+cpLimit (1-100, init: 100) - CP % limit.
+Example: <set stat="cpLimit" val="20"/>- CP capped at 20%.
+Speed​
+runSpd (0-Infinity, init: 0) - Movement speed.
+Example: <add stat="runSpd" val="20"/> - +20 speed.
+Attack and Defense​
+pDef (0-Infinity, init: 0) - Physical defense.
+Example: <mul stat="pDef" val="1.2"/> - +20% defense.
+mDef (0-Infinity, init: 0) - Magical defense.
+Example: <add stat="mDef" val="50"/> - +50 mag. defense.
+pAtk (0-Infinity, init: 0) - Physical attack.
+Example: <mul stat="pAtk" val="1.3"/> - +30% damage.
+mAtk (0-Infinity, init: 0) - Magical attack.
+Example: <add stat="mAtk" val="100"/> - +100 mag. damage.
+pAtkSpd (0-Infinity, init: 0) - Physical attack speed.
+Example: <mul stat="pAtkSpd" val="1.15"/> - +15% attack speed.
+mAtkSpd (0-Infinity, init: 0) - Casting speed.
+Example: <add stat="mAtkSpd" val="30"/> - +30 casting speed.
+Skill Cooldowns​
+mReuse (0-Infinity, init: 0) - Magic skill reuse reduction.
+Example: <mul stat="mReuse" val="0.8"/> - -20% cooldown.
+pReuse (0-Infinity, init: 0) - Physical skill reuse reduction.
+Example: <mul stat="pReuse" val="0.9"/> - -10% cooldown.
+musicReuse (0-Infinity, init: 0) - Music skill reuse reduction.
+Example: <mul stat="musicReuse" val="0.7"/> - -30% song cooldown.
+atkReuse (0-Infinity, init: 0) - Auto-attack reuse reduction.
+Example: <mul stat="atkReuse" val="0.85"/> - -15% delay.
+atkBaseSpeed (0-Infinity, init: 0) - Base attack speed.
+Example: <add stat="atkBaseSpeed" val="50"/> - +50 base speed.
+Critical Hits​
+cAtk (0-Infinity, init: 100) - Physical crit damage (%).
+Example: <add stat="cAtk" val="50"/> - +50% crit damage.
+cAtkStatic (0-Infinity, init: 0) - Fixed crit damage bonus.
+Example: <add stat="cAtkStatic" val="200"/> - +200 crit damage.
+rEvas (0-Infinity, init: 0) - Evasion.
+Example: <add stat="rEvas" val="10"/> - +10 evasion.
+accCombat (0-Infinity, init: 0) - Accuracy.
+Example: <add stat="accCombat" val="5"/> - +5 accuracy.
+baseCrit (0-Infinity, init: 100) - Base physical crit chance.
+Example: <add stat="baseCrit" val="27.4"/> - +27.4% crit.
+rCrit (0-Infinity, init: 100) - Physical crit chance multiplier.
+Example: <mul stat="rCrit" val="1.5"/> - x1.5 crit chance.
+mCritRate (0-Infinity, init: Config.MCRITICAL_BASE_STAT) - Magic crit chance.
+Example: <mul stat="mCritRate" val="1.3"/> - +30% mag. crit.
+mCritDamage (0-10, init: 2.5) - Magic crit damage multiplier.
+Example: <mul stat="mCritDamage" val="3"/> - x3 mag. crit damage.
+mCritDamageResist (0-Infinity, init: 0) - Magic crit damage resistance.
+Example: <add stat="mCritDamageResist" val="20"/> - +20 resistance.
+Damage​
+physDamage (0-Infinity, init: 0) - Extra physical damage.
+Example: <add stat="physDamage" val="100"/> - +100 phys. damage.
+magicDamage (0-Infinity, init: 0) - Extra magical damage.
+Example: <add stat="magicDamage" val="150"/> - +150 mag. damage.
+Shield and Interrupt​
+concentration (0-100, init: 0) - Cast interrupt resistance.
+Example: <add stat="concentration" val="30"/> - +30% cast protection.
+sDef (0-Infinity, init: 0) - Shield defense.
+Example: <add stat="sDef" val="50"/> - +50 shield defense.
+rShld (0-90, init: 0) - Shield block chance.
+Example: <add stat="rShld" val="20"/> - +20% block chance.
+shldAngle (0-360, init: 60) - Shield block angle.
+Example: <set stat="shldAngle" val="120"/> - 120° block.
+Attack Range and Angle​
+pAtkRange (0-1500, init: 0) - Physical attack range.
+Example: <add stat="pAtkRange" val="100"/> - +100 range.
+mAtkRange (0-1500, init: 0) - Magical attack range.
+Example: <add stat="mAtkRange" val="200"/> - +200 range.
+poleAngle (0-Config.POLE_ATTACK_ANGLE, init: 0) - Pole attack angle.
+Example: <set stat="poleAngle" val="90"/> - 90° attack angle.
+poleTargetCount (0-Infinity, init: 0) - Pole target count.
+Example: <add stat="poleTargetCount" val="2"/> - +2 targets.
+Base Stats​
+STR (1-99, init: 0) - Strength.
+Example: <add stat="STR" val="5"/> - +5 strength.
+CON (1-99, init: 0) - Constitution.
+Example: <add stat="CON" val="3"/> - +3 constitution.
+DEX (1-99, init: 0) - Dexterity.
+Example: <add stat="DEX" val="4"/> - +4 dexterity.
+INT (1-99, init: 0) - Intelligence.
+Example: <add stat="INT" val="6"/> - +6 intelligence.
+WIT (1-99, init: 0) - Wisdom.
+Example: <add stat="WIT" val="5"/> - +5 wisdom.
+MEN (1-99, init: 0) - Mentality.
+Example: <add stat="MEN" val="4"/> - +4 mentality.
+Miscellaneous​
+breath (0-Infinity, init: 0) - Breath hold time underwater.
+Example: <add stat="breath" val="30"/> - +30 sec underwater.
+fall (0-Infinity, init: 0) - Fall damage resistance.
+Example: <add stat="fall" val="50"/> - -50% fall damage.
+expLost (0-Infinity, init: 0) - Exp loss reduction on death.
+Example: <mul stat="expLost" val="0.5"/> - -50% exp loss.
+Resistances​
+bleedResist (-Infinity-Infinity, init: 0) - Bleed resistance.
+Example: <add stat="bleedResist" val="20"/> - +20 resistance.
+poisonResist (-Infinity-Infinity, init: 0) - Poison resistance.
+Example: <add stat="poisonResist" val="30"/> - +30 resistance.
+stunResist (-Infinity-Infinity, init: 0) - Stun resistance.
+Example: <add stat="stunResist" val="25"/> - +25 resistance.
+rootResist (-Infinity-Infinity, init: 0) - Root resistance.
+Example: <add stat="rootResist" val="15"/> - +15 resistance.
+mentalResist (-Infinity-Infinity, init: 0) - Mental attack resistance.
+Example: <add stat="mentalResist" val="20"/> - +20 resistance.
+sleepResist (-Infinity-Infinity, init: 0) - Sleep resistance.
+Example: <add stat="sleepResist" val="30"/> - +30 resistance.
+paralyzeResist (-Infinity-Infinity, init: 0) - Paralyze resistance.
+Example: <add stat="paralyzeResist" val="25"/> - +25 resistance.
+cancelResist (-200-300, init: 0) - Buff cancel resistance.
+Example: <add stat="cancelResist" val="50"/> - +50 resistance.
+debuffResist (-Infinity-Infinity, init: 0) - Debuff resistance.
+Example: <add stat="debuffResist" val="20"/> - +20 resistance.
+magicResist (-200-300, init: 0) - Magic resistance.
+Example: <add stat="magicResist" val="30"/> - +30 resistance.
+Effect Power​
+bleedPower (-200-200, init: 0) - Bleed effect power.
+Example: <add stat="bleedPower" val="50"/> - +50 bleed power.
+poisonPower (-200-200, init: 0) - Poison effect power.
+Example: <add stat="poisonPower" val="40"/> - +40 poison power.
+stunPower (- - Stun effect power.
+Example: <add stat="stunPower" val="30"/> - +30 stun power.
+rootPower (-200-200, init: 0) - Root effect power.
+Example: <add stat="rootPower" val="20"/> - +20 root power.
+mentalPower (-200-200, init: 0) - Mental attack power.
+Example: <add stat="mentalPower" val="25"/> - +25 mental power.
+sleepPower (-200-200, init: 0) - Sleep effect power.
+Example: <add stat="sleepPower" val="30"/> - +30 sleep power.
+paralyzePower (-200-200, init: 0) - Paralyze effect power.
+Example: <add stat="paralyzePower" val="35"/> - +35 paralyze power.
+cancelPower (-200-200, init: 0) - Buff cancel power.
+Example: <add stat="cancelPower" val="40"/> - +40 cancel power.
+debuffPower (-200-200, init: 0) - Debuff power.
+Example: <add stat="debuffPower" val="30"/> - +30 debuff power.
+magicPower (-200-200, init: 0) - Magic effect power.
+Example: <add stat="magicPower" val="50"/> - +50 magic power.
+Crit and Vulnerabilities​
+blowRate (0-Config.BLOW_RATE_CHANCE_LIMIT, init: 1) - Fatal blow chance.
+Example: <mul stat="blowRate" val="1.5"/> - x1.5 fatal chance.
+SkillCritChanceMod (10-190, init: 100) - Skill crit chance modifier.
+Example: <mul stat="SkillCritChanceMod" val="1.2"/> - +20% chance.
+deathVuln (10-190, init: 100) - Death vulnerability.
+Example: <mul stat="deathVuln" val="1.3"/> - +30% vulnerability.
+critDamRcpt (-Infinity-Infinity, init: 0) - Crit damage vulnerability.
+Example: <add stat="critDamRcpt" val="20"/> - +20% crit damage.
+critChanceRcpt (10-190, init: 100) - Crit chance vulnerability.
+Example: <mul stat="critChanceRcpt" val="1.2"/> - +20% crit chance.
+Elemental Defense​
+defenceFire (-Infinity-Infinity, init: 0) - Fire defense.
+Example: <add stat="defenceFire" val="30"/> - +30 defense.
+defenceWater (-Infinity-Infinity, init: 0) - Water defense.
+Example: <add stat="defenceWater" val="25"/> - +25 defense.
+defenceWind (-Infinity-Infinity, init: 0) - Wind defense.
+Example: <add stat="defenceWind" val="20"/> - +20 defense.
+defenceEarth (-Infinity-Infinity, init: 0) - Earth defense.
+Example: <add stat="defenceEarth" val="15"/> - +15 defense.
+defenceHoly (-Infinity-Infinity, init: 0) - Holy defense.
+Example: <add stat="defenceHoly" val="30"/> - +30 defense.
+defenceUnholy (-Infinity-Infinity, init: 0) - Unholy defense.
+Example: <add stat="defenceUnholy" val="25"/> - +25 defense.
+Elemental Attack​
+attackFire (0-Infinity, init: 0) - Fire attack.
+Example: <add stat="attackFire" val="50"/> - +50 fire damage.
+attackWater (0-Infinity, init: 0) - Water attack.
+Example: <add stat="attackWater" val="40"/> - +40 water damage.
+attackWind (0-Infinity, init: 0) - Wind attack.
+Example: <add stat="attackWind" val="30"/> - +30 wind damage.
+attackEarth (0-Infinity, init: 0) - Earth attack.
+Example: <add stat="attackEarth" val="20"/> - +20 earth damage.
+attackHoly (0-Infinity, init: 0) - Holy attack.
+Example: <add stat="attackHoly" val="50"/> - +50 holy damage.
+attackUnholy (0-Infinity, init: 0) - Unholy attack.
+Example: <add stat="attackUnholy" val="40"/> - +40 unholy damage.
+Weapon Vulnerability​
+swordWpnVuln (10-200, init: 100) - Sword vulnerability.
+Example: <mul stat="swordWpnVuln" val="1.2"/> - +20% damage.
+dualWpnVuln (10-200, init: 100) - Dual sword vulnerability.
+Example: <mul stat="dualWpnVuln" val="1.15"/> - +15% damage.
+bluntWpnVuln (10-200, init: 100) - Blunt weapon vulnerability.
+Example: <mul stat="bluntWpnVuln" val="1.1"/> - +10% damage.
+daggerWpnVuln (10-200, init: 100) - Dagger vulnerability.
+Example: <mul stat="daggerWpnVuln" val="1.3"/> - +30% damage.
+bowWpnVuln (10-200, init: 100) - Bow vulnerability.
+Example: <mul stat="bowWpnVuln" val="1.2"/> - +20% damage.
+crossbowWpnVuln (10-200, init: 100) - Crossbow vulnerability.
+Example: <mul stat="crossbowWpnVuln" val="1.15"/> - +15% damage.
+poleWpnVuln (10-200, init: 100) - Pole vulnerability.
+Example: <mul stat="poleWpnVuln" val="1.1"/> - +10% damage.
+fistWpnVuln (10-200, init: 100) - Fist vulnerability.
+Example: <mul stat="fistWpnVuln" val="1.2"/> - +20% damage.
+Damage Absorption and Transfer​
+absorbDam (0-100, init: 0) - % damage absorption.
+Example: <add stat="absorbDam" val="20"/> - Absorb 20% damage.
+absorbDamToMp (0-Infinity, init: 0) - % damage to MP.
+Example: <add stat="absorbDamToMp" val="10"/> - 10% damage to MP.
+absorbDamToMpChance (0-100, init: 0) - Chance to absorb damage to MP.
+Example: <add stat="absorbDamToMpChance" val="30"/> - 30% chance.
+transferPetDam (0-100, init: 0) - % damage to summon.
+Example: <add stat="transferPetDam" val="50"/> - 50% damage to pet.
+transferToEffectorDam (0-100, init: 0) - % damage to buffer.
+Example: <add stat="transferToEffectorDam" val="20"/> - 20% damage.
+Damage Reflection​
+reflectAndBlockDam (0-100, init: 0) - Chance to reflect physical damage (non-skills).
+Example: <add stat="reflectAndBlockDam" val="15"/> - 15% chance.
+reflectAndBlockPSkillDam (0-100, init: 0) - Chance to reflect physical skills.
+Example: <add stat="reflectAndBlockPSkillDam" val="10"/> - 10% chance.
+reflectAndBlockMSkillDam (0-100, init: 0) - Chance to reflect magical damage.
+Example: <add stat="reflectAndBlockMSkillDam" val="5"/> - 5% chance.
+absorbDamageValue (0-Infinity, init: 0) - Fixed physical damage absorption.
+Example: <add stat="absorbDamageValue" val="100"/> - -100 damage.
+reflectDam (0-100, init: 0) - % physical damage reflection (non-skills).
+Example: <add stat="reflectDam" val="20"/> - 20% reflection.
+reflectPSkillDam (0-100, init: 0) - % physical skill reflection.
+Example: <add stat="reflectPSkillDam" val="15"/> - 15% reflection.
+reflectMSkillDam (0-100, init: 0) - % magical damage reflection.
+Example: <add stat="reflectMSkillDam" val="10"/> - 10% reflection.
+Skill and Debuff Reflection​
+reflectPhysicSkill (0-100, init: 0) - Chance to reflect physical skills.
+Example: <add stat="reflectPhysicSkill" val="20"/> - 20% chance.
+reflectMagicSkill (0-100, init: 0) - Chance to reflect magical skills.
+Example: <add stat="reflectMagicSkill" val="15"/> - 15% chance.
+reflectPhysicDebuff (0-100, init: 0) - Chance to reflect physical debuffs.
+Example: <add stat="reflectPhysicDebuff" val="25"/> - 25% chance.
+reflectMagicDebuff (0-100, init: 0) - Chance to reflect magical debuffs.
+Example: <add stat="reflectMagicDebuff" val="20"/> - 20% chance.
+Evasion and Counter​
+pSkillEvasion (0-100, init: 0) - Chance to evade physical skills.
+Example: <add stat="pSkillEvasion" val="15"/> - 15% chance.
+counterAttack (0-100, init: 0) - Chance to counterattack.
+Example: <add stat="counterAttack" val="10"/> - 10% chance.
+PvP Bonuses​
+skillPower (0-Infinity, init: 0) - Skill power bonus in PvP.
+Example: <add stat="skillPower" val="20"/> - +20% skill power.
+pvpPhysDmgBonus (0-Infinity, init: 0) - Physical damage bonus in PvP.
+Example: <add stat="pvpPhysDmgBonus" val="10"/> - +10% damage.
+pvpPhysSkillDmgBonus (0-Infinity, init: 0) - Physical skill damage bonus in PvP.
+Example: <add stat="pvpPhysSkillDmgBonus" val="15"/> - +15% damage.
+pvpMagicSkillDmgBonus (0-Infinity, init: 0) - Magical skill damage bonus in PvP.
+Example: <add stat="pvpMagicSkillDmgBonus" val="20"/> - +20% damage.
+pvpPhysDefenceBonus (0-Infinity, init: 0) - Physical defense bonus in PvP.
+Example: <add stat="pvpPhysDefenceBonus" val="10"/> - +10% defense.
+pvpPhysSkillDefenceBonus (0-Infinity, init: 0) - Physical skill defense bonus in PvP.
+Example: <add stat="pvpPhysSkillDefenceBonus" val="15"/> - +15% defense.
+pvpMagicSkillDefenceBonus (0-Infinity, init: 0) - Magical skill defense bonus in PvP.
+Example: <add stat="pvpMagicSkillDefenceBonus" val="20"/> - +20% defense.
+PvE Bonuses​
+pvePhysDmgBonus (0-Infinity, init: 0) - Physical damage bonus in PvE.
+Example: <add stat="pvePhysDmgBonus" val="10"/> - +10% damage.
+pvePhysSkillDmgBonus (0-Infinity, init: 0) - Physical skill damage bonus in PvE.
+Example: <add stat="pvePhysSkillDmgBonus" val="15"/> - +15% damage.
+pveMagicSkillDmgBonus (0-Infinity, init: 0) - Magical skill damage bonus in PvE.
+Example: <add stat="pveMagicSkillDmgBonus" val="20"/> - +20% damage.
+pvePhysDefenceBonus (0-Infinity, init: 0) - Physical defense bonus in PvE.
+Example: <add stat="pvePhysDefenceBonus" val="10"/> - +10% defense.
+pvePhysSkillDefenceBonus (0-Infinity, init: 0) - Physical skill defense bonus in PvE.
+Example: <add stat="pvePhysSkillDefenceBonus" val="15"/> - +15% defense.
+pveMagicSkillDefenceBonus (0-Infinity, init: 0) - Magical skill defense bonus in PvE.
+Example: <add stat="pveMagicSkillDefenceBonus" val="20"/> - +20% defense.
+Shot Bonuses​
+ssBonus (0-Infinity, init: 0) - Soul Shot damage bonus.
+Example: <add stat="ssBonus" val="10"/> - +10% SS damage.
+spsBonus (0-Infinity, init: 0) - Spirit Shot damage bonus.
+Example: <add stat="spsBonus" val="15"/> - +15% SPS damage.
+bspsBonus (0-Infinity, init: 0) - Blessed Spirit Shot damage bonus.
+Example: <add stat="bspsBonus" val="20"/> - +20% BSPS damage.
+Healing​
+hpEff (0-1000, init: 0) - HP healing effectiveness.
+Example: <mul stat="hpEff" val="1.2"/> - +20% healing.
+mpEff (0-1000, init: 0) - MP restoration effectiveness.
+Example: <mul stat="mpEff" val="1.3"/> - +30% MP restoration.
+cpEff (0-1000, init: 0) - CP restoration effectiveness.
+Example: <mul stat="cpEff" val="1.2"/> - +20% CP restoration.
+healPower (0-Infinity, init: 0) - Healing power.
+Example: <add stat="healPower" val="50"/> - +50 healing power.
+MP Consumption​
+mpConsum (0-Infinity, init: 0) - MP cost for magic skills.
+Example: <mul stat="mpConsum" val="0.8"/> - -20% MP cost.
+mpConsumePhysical (0-Infinity, init: 0) - MP cost for physical skills.
+Example: <mul stat="mpConsumePhysical" val="0.9"/> - -10% MP cost.
+mpDanceConsume (0-Infinity, init: 0) - MP cost for dances/songs.
+Example: <mul stat="mpDanceConsume" val="0.7"/> - -30% MP cost.
+cheapShot (0-Infinity, init: 0) - MP cost reduction for bow shots.
+Example: <add stat="cheapShot" val="5"/> - -5 MP per shot.
+cheapShotChance (0-Infinity, init: 0) - Chance to reduce MP cost for bow shots.
+Example: <add stat="cheapShotChance" val="20"/> - 20% chance.
+miser (0-Infinity, init: 0) - SS cost reduction for bow shots.
+Example: <add stat="miser" val="1"/> - -1 SS per shot.
+miserChance (0-Infinity, init: 0) - Chance to reduce SS cost for bow shots.
+Example: <add stat="miserChance" val="30"/> - 30% chance.
+Mastery​
+skillMastery (0-Infinity, init: 0) - Skill mastery activation chance.
+Example: <add stat="skillMastery" val="10"/> - +10% mastery chance.
+Inventory and Limits​
+maxLoad (0-Infinity, init: 0) - Max inventory weight.
+Example: <add stat="maxLoad" val="1000"/> - +1000 weight.
+maxNoPenaltyLoad (0-Infinity, init: 0) - Max weight without penalty.
+Example: <add stat="maxNoPenaltyLoad" val="500"/> - +500 no penalty.
+inventoryLimit (0-Infinity, init: 0) - Inventory slot limit.
+Example: <add stat="inventoryLimit" val="10"/> - +10 slots.
+storageLimit (0-Infinity, init: 0) - Storage slot limit.
+Example: <add stat="storageLimit" val="20"/> - +20 storage slots.
+tradeLimit (0-Infinity, init: 0) - Trade slot limit.
+Example: <add stat="tradeLimit" val="5"/> - +5 trade slots.
+CommonRecipeLimit (0-Infinity, init: 0) - Common recipe limit.
+Example: <add stat="CommonRecipeLimit" val="10"/> - +10 recipes.
+DwarvenRecipeLimit (0-Infinity, init: 0) - Dwarven recipe limit.
+Example: <add stat="DwarvenRecipeLimit" val="5"/> - +5 dwarven recipes.
+buffLimit (0-Infinity, init: 0) - Buff slot limit.
+Example: <add stat="buffLimit" val="4"/> - +4 buff slots.
+cubicsLimit (0-3, init: 1) - Cubic slot limit.
+Example: <add stat="cubicsLimit" val="1"/> - +1 cubic.
+openCloakSlot (0-1, init: 0) - Cloak slot unlock.
+Example: <set stat="openCloakSlot" val="1"/> - Unlocks cloak slot.
+talismansLimit (0-6, init: 0) - Talisman slot limit.
+Example: <add stat="talismansLimit" val="2"/> - +2 talismans.
+broochLimit (0-6, init: 0) - Brooch slot limit.
+Example: <add stat="broochLimit" val="1"/> - +1 brooch.
+agathionCharnLimit (0-5, init: 0) - Agathion slot limit.
+Example: <add stat="agathionCharnLimit" val="1"/> - +1 agathion.
+Progression and Rewards​
+gradeExpertiseLevel (0-Infinity, init: 0) - Gear expertise level.
+Example: <add stat="gradeExpertiseLevel" val="1"/> - +1 level.
+ExpMultiplier (0-Infinity, init: 0) - EXP multiplier.
+Example: <mul stat="ExpMultiplier" val="1.5"/> - x1.5 EXP.
+SpMultiplier (0-Infinity, init: 0) - SP multiplier.
+Example: <mul stat="SpMultiplier" val="1.5"/> - x1.5 SP.
+RaidExpMultiplier (0-Infinity, init: 0) - Raid EXP multiplier.
+Example: <mul stat="RaidExpMultiplier" val="2"/> - x2 raid EXP.
+RaidSpMultiplier (0-Infinity, init: 0) - Raid SP multiplier.
+Example: <mul stat="RaidSpMultiplier" val="2"/> - x2 raid SP.
+ItemDropMultiplier (0-Infinity, init: 0) - Item drop multiplier.
+Example: <mul stat="ItemDropMultiplier" val="1.3"/> - x1.3 drop.
+AdenaDropMultiplier (0-Infinity, init: 0) - Adena drop multiplier.
+Example: <mul stat="AdenaDropMultiplier" val="1.5"/> - x1.5 adena.
+SpoilDropMultiplier (0-Infinity, init: 0) - Spoil drop multiplier.
+Example: <mul stat="SpoilDropMultiplier" val="1.2"/> - x1.2 spoil.
+SealStonesMultiplier (0-Infinity, init: 0) - Seal stones multiplier.
+Example: <mul stat="SealStonesMultiplier" val="1.3"/> - x1.3 stones.
+QuestDropMultiplier (0-Infinity, init: 0) - Quest drop multiplier.
+Example: <mul stat="QuestDropMultiplier" val="2"/> - x2 quest drop.
+EnchantBonusMultiplier (0-Infinity, init: 0) - Enchant chance bonus.
+Example: <mul stat="EnchantBonusMultiplier" val="1.1"/> - +10% enchant.
+EnchantSkillBonusMultiplier (0-Infinity, init: 0) - Skill enchant bonus.
+Example: <mul stat="EnchantSkillBonusMultiplier" val="1.2"/> - +20% skill enchant.
+Auto-Loot​
+autoLootAll (0-1, init: 0) - Auto-loot everything.
+Example: <set stat="autoLootAll" val="1"/> - Enables auto-loot.
+autoLootHerb (0-1, init: 0) - Auto-loot herbs.
+Example: <set stat="autoLootHerb" val="1"/> - Auto-loot herbs.
+autoLootAdena (0-1, init: 0) - Auto-loot adena.
+Example: <set stat="autoLootAdena" val="1"/> - Auto-loot adena.
+VIP Bonuses​
+worldChatBonus (0-Infinity, init: 0) - World chat bonus.
+Example: <add stat="worldChatBonus" val="5"/> - +5 chat bonus.
+vipBonusesSilverDropChance (0-Infinity, init: 0) - Silver drop chance (VIP).
+Example: <add stat="vipBonusesSilverDropChance" val="10"/> - +10% chance.
+vipBonusesGoldDropChance (0-Infinity, init: 0) - Gold drop chance (VIP).
+Example: <add stat="vipBonusesGoldDropChance" val="15"/> - +15% chance.
+
+E) Conditions​
+Key Concepts​
+Conditions: Logical checks (e.g., forbiddenClassIds, level, zone) that must return true to activate.
+Attachment: Conditions are added in XML nodes <player>, <target>, <using>, <has>, <game>, <zone>.
+Logical Operators: Combine conditions using <and>, <or>, <not>.
+XML Attributes: Conditions are defined by attribute names (e.g., forbiddenClassIds), as in parseCondition.
+Categories and Condition Descriptions​
+Logical Conditions (Nodes)​
+and: All sub-conditions must be true.
+or: At least one sub-condition must be true.
+not: Inverts the sub-condition.
+Player Conditions​
+forbiddenClassIds: Prohibited player class IDs (e.g., "88;99").
+minLevel: Minimum player level.
+maxLevel: Maximum player level.
+maxPK: Maximum PK count.
+resting: Resting state (true/false).
+moving: Moving state (true/false).
+running: Running state (true/false).
+standing: Standing state (true/false).
+flying: Flying state (true/false).
+flyingTransform: Flying in transformation (true/false).
+olympiad: Olympiad participation (true/false).
+is_in_team: In a team (true/false).
+on_pvp_event: In PvP event (true/false).
+is_hero: Hero status (true/false).
+is_noble: Noble status (true/false).
+is_clan_leader: Clan leader (true/false).
+clan_level: Clan level.
+clanId: Clan ID.
+is_in_academy: In clan academy (true/false).
+is_premium: Premium status (true/false).
+is_in_combat: In combat (true/false).
+class_is_mage: Mage class (true/false).
+min_pledge_level: Minimum clan level.
+min_pledge_rank: Minimum pledge rank.
+percentHP: HP percentage.
+percentMP: MP percentage.
+percentCP: CP percentage.
+chargesMin: Minimum charges.
+chargesMax: Maximum charges.
+agathion: Agathion ID.
+cubic: Cubic ID.
+instance_zone: Instance zone ID.
+riding: Riding state (strider, wyvern, none).
+classId: Player class ID.
+privateStoreType: Private store type (e.g., "SELL").
+gender: Player gender (e.g., "MALE").
+hasBuffId: Buff by skill ID (e.g., "1234;-1").
+hasBuff: Buff by effect type (e.g., "BUFF;-1").
+damage: Damage range (e.g., "100;500").
+skillMinSeed: Minimum seeds for skill (e.g., "1234;5").
+summon_siege_golem: Summoned siege golem (true).
+Target Conditions​
+aggro: Target has aggro (true/false).
+pvp: Playable character (true/false).
+player: Target is player (true/false).
+exclude_caster: Target is not caster (true/false).
+summon: Summoned creature (true/false).
+mob: Mob (true/false).
+npc: NPC (true/false).
+targetInTheSameParty: In caster’s party (true/false).
+targetInTheSameClan: In caster’s clan (true/false).
+targetInTheSameAlly: In caster’s alliance (true/false).
+mobId: Mob ID.
+race: Target race (e.g., "UNDEAD").
+npc_class: NPC class (e.g., "MONSTER").
+playerRace: Target player race.
+forbiddenClassIds: Prohibited target class IDs.
+playerSameClan: Target in specified clan.
+castledoor: Castle door (true/false).
+direction: Target direction (FRONT, SIDE, BACK).
+percentHP: Target HP percentage.
+percentMP: Target MP percentage.
+percentCP: Target CP percentage.
+hasBuffId: Target buff by skill ID.
+hasBuff: Target buff by effect type.
+hasForbiddenSkill: Target forbidden skill.
+Using Conditions​
+kind or weapon: Equipped item type (e.g., "SWORD,SHIELD").
+armor: Armor type (e.g., "HEAVY").
+skill: Used skill ID.
+blowskill: Blow-type skill (true/false).
+slotitem: Item in slot (e.g., "1234;7;0" — ID, slot, enchant).
+Has Conditions​
+skill: Player has skill (e.g., "1234;1" — ID, level).
+success: First effect success (true/false).
+Game Conditions​
+night: Nighttime in game (true/false).
+Zone Conditions​
+type: Zone type (e.g., "PEACE").
+name: Zone name.
+
+Example in the skill:
+XML:
+    <cond msgId="1902">
+      <and>
+        <player minLevel="#levelMin"/>
+        <player maxLevel="#levelMax"/>
+      </and>
+    </cond>
+
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+F) Effects:
+
+<effect count="1" name="Buff" time="1200" val="0" stackOrder="#stack" stackType="hp_up">
+
+count = number of ticks that the effect lasts
+time = tick length in seconds for this effect (In the example, we have one tick with a length of 1200sec = 20min)
+name = what is this effect. Effects can have start, stop and duration effects.
+val = value for "name"
+stackOrder = used to replace one effect with another effect that has a higher stackOrder. an effect with a lower stackORder cannot replace an effect with a higherstackOrder
+stackType = "Effect type "so that similar buffs are not applied
+
+example: attack speed is added by 25%, but mana is taken away every 2 ticks 35 HP
+<for>
+<effect count="0x7fffffff" name="HealOverTime" time="2" val="-35">
+<mul order="0x50" stat="pAtkSpd" val="1.25"/>
+</effect>
+</for>
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
