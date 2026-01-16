@@ -46,7 +46,7 @@ import {
   PlayArrow as PlayArrowIcon,
   Delete as DeleteIcon,
 } from '@mui/icons-material';
-import { parseItemNameFile, parseItemGroupFile, serializeItemNameFile, serializeItemGroupFile, extractIconPath } from './utils/fileParser';
+import { parseItemNameFile, parseItemGroupFile, serializeItemNameFile, serializeItemGroupFile, extractIconPath, parseSkillNameFile, parseSkillGrpFile, serializeSkillNameFile, serializeSkillGrpFile, extractSkillIconPath } from './utils/fileParser';
 
 // Helper to strip brackets for display
 const stripBrackets = (value) => {
@@ -96,6 +96,18 @@ function App() {
   const [iconPreview, setIconPreview] = useState(null);
   const [toolsLog, setToolsLog] = useState([]);
   const [toolsRunning, setToolsRunning] = useState(false);
+  
+  // Skills state
+  const [skills, setSkills] = useState([]);
+  const [skillGrpData, setSkillGrpData] = useState([]);
+  const [filteredSkills, setFilteredSkills] = useState([]);
+  const [skillSearchTerm, setSkillSearchTerm] = useState('');
+  const [skillPage, setSkillPage] = useState(0);
+  const [skillRowsPerPage, setSkillRowsPerPage] = useState(25);
+  const [currentSkill, setCurrentSkill] = useState(null);
+  const [editSkillDialogOpen, setEditSkillDialogOpen] = useState(false);
+  const [editingSkillCell, setEditingSkillCell] = useState(null); // { skillId, skillLevel, skillSublevel, field }
+  const [editingSkillValue, setEditingSkillValue] = useState('');
 
   // Load data from files
   useEffect(() => {
@@ -172,6 +184,23 @@ function App() {
     setPage(0);
   }, [searchTerm, items, filters, weaponData, armorData, etcData, sortBy, sortDirection]);
 
+  // Filter skills based on search
+  useEffect(() => {
+    let filtered = skills;
+    
+    if (skillSearchTerm) {
+      filtered = filtered.filter(skill =>
+        stripBrackets(skill.name || '').toLowerCase().includes(skillSearchTerm.toLowerCase()) ||
+        skill.skill_id?.toString().includes(skillSearchTerm) ||
+        stripBrackets(skill.desc || '').toLowerCase().includes(skillSearchTerm.toLowerCase()) ||
+        skill.skill_level?.toString().includes(skillSearchTerm)
+      );
+    }
+    
+    setFilteredSkills(filtered);
+    setSkillPage(0);
+  }, [skillSearchTerm, skills]);
+
   const loadFiles = async () => {
     try {
       // Load ItemName file
@@ -198,6 +227,22 @@ function App() {
       const etcText = await etcResponse.text();
       const parsedEtc = parseItemGroupFile(etcText, 'etc');
       setEtcData(parsedEtc);
+      
+      // Load Skills data
+      try {
+        const skillNameResponse = await fetch('/txt/SkillName_Classic-eu.txt');
+        const skillNameText = await skillNameResponse.text();
+        const parsedSkillNames = parseSkillNameFile(skillNameText);
+        setSkills(parsedSkillNames);
+        setFilteredSkills(parsedSkillNames);
+
+        const skillGrpResponse = await fetch('/txt/Skillgrp_Classic.txt');
+        const skillGrpText = await skillGrpResponse.text();
+        const parsedSkillGrp = parseSkillGrpFile(skillGrpText);
+        setSkillGrpData(parsedSkillGrp);
+      } catch (skillError) {
+        console.log('Skills files not found or error loading:', skillError);
+      }
 
       showSnackbar('Files loaded successfully', 'success');
     } catch (error) {
@@ -309,6 +354,114 @@ function App() {
       handleCellBlur();
     } else if (e.key === 'Escape') {
       setEditingCell(null);
+    }
+  };
+
+  // Skill cell editing handlers
+  const handleSkillCellClick = (skill, field) => {
+    setEditingSkillCell({ 
+      skillId: skill.skill_id, 
+      skillLevel: skill.skill_level, 
+      skillSublevel: skill.skill_sublevel, 
+      field 
+    });
+    let value = stripBrackets(skill[field]) || '';
+    // Convert \\n to actual newlines for editing
+    if (field === 'desc') {
+      value = value.replace(/\\\\n/g, '\n');
+    }
+    setEditingSkillValue(value);
+  };
+
+  const handleSkillCellSave = (skillId, skillLevel, skillSublevel, field, value) => {
+    // Special handling for skill_id changes
+    if (field === 'skill_id') {
+      const newSkillId = value.trim();
+      
+      // Validate that the new ID is not empty
+      if (!newSkillId) {
+        showSnackbar('Skill ID cannot be empty', 'error');
+        setEditingSkillCell(null);
+        return;
+      }
+      
+      // Check if the new ID already exists (excluding the current skill)
+      const isDuplicate = skills.some(s => 
+        s.skill_id === newSkillId && 
+        s.skill_level === skillLevel && 
+        s.skill_sublevel === skillSublevel &&
+        !(s.skill_id === skillId && s.skill_level === skillLevel && s.skill_sublevel === skillSublevel)
+      );
+      
+      if (isDuplicate) {
+        showSnackbar(`Skill ID ${newSkillId} with level ${skillLevel} and sublevel ${skillSublevel} already exists!`, 'error');
+        setEditingSkillCell(null);
+        return;
+      }
+      
+      // Update skill_id in both skills and skillGrpData
+      const updatedSkills = skills.map(skill => {
+        if (skill.skill_id === skillId && 
+            skill.skill_level === skillLevel && 
+            skill.skill_sublevel === skillSublevel) {
+          return { ...skill, skill_id: newSkillId };
+        }
+        return skill;
+      });
+      
+      const updatedSkillGrp = skillGrpData.map(skill => {
+        if (skill.skill_id === skillId && 
+            skill.skill_level === skillLevel && 
+            skill.skill_sublevel === skillSublevel) {
+          return { ...skill, skill_id: newSkillId };
+        }
+        return skill;
+      });
+      
+      setSkills(updatedSkills);
+      setSkillGrpData(updatedSkillGrp);
+      setEditingSkillCell(null);
+      showSnackbar(`Skill ID updated to ${newSkillId} in both files`, 'success');
+      return;
+    }
+    
+    // Convert actual newlines to \\n for storage
+    let processedValue = value;
+    if (field === 'desc') {
+      processedValue = value.replace(/\n/g, '\\\\n');
+    }
+    
+    const updatedSkills = skills.map(skill => {
+      if (skill.skill_id === skillId && 
+          skill.skill_level === skillLevel && 
+          skill.skill_sublevel === skillSublevel) {
+        return { ...skill, [field]: `[${processedValue}]` };
+      }
+      return skill;
+    });
+    setSkills(updatedSkills);
+    setEditingSkillCell(null);
+    showSnackbar('Skill field updated', 'success');
+  };
+
+  const handleSkillCellBlur = () => {
+    if (editingSkillCell) {
+      handleSkillCellSave(
+        editingSkillCell.skillId, 
+        editingSkillCell.skillLevel, 
+        editingSkillCell.skillSublevel,
+        editingSkillCell.field, 
+        editingSkillValue
+      );
+    }
+  };
+
+  const handleSkillCellKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSkillCellBlur();
+    } else if (e.key === 'Escape') {
+      setEditingSkillCell(null);
     }
   };
 
@@ -457,6 +610,176 @@ function App() {
     }
     
     showSnackbar(`Item duplicated with ID: ${newId}`, 'success');
+  };
+
+  // Skill handlers
+  const getRelatedSkillData = (skillId, skillLevel, skillSublevel) => {
+    return skillGrpData.find(s => 
+      s.skill_id === skillId && 
+      s.skill_level === skillLevel && 
+      s.skill_sublevel === skillSublevel
+    );
+  };
+
+  const handleEditSkillClick = (skill) => {
+    const relatedData = getRelatedSkillData(skill.skill_id, skill.skill_level, skill.skill_sublevel);
+    setCurrentSkill({ ...skill, _relatedData: relatedData ? { ...relatedData } : null });
+    setEditSkillDialogOpen(true);
+  };
+
+  const handleEditSkillChange = (field, value) => {
+    setCurrentSkill(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleRelatedSkillDataChange = (field, value) => {
+    setCurrentSkill(prev => ({
+      ...prev,
+      _relatedData: { ...prev._relatedData, [field]: value }
+    }));
+  };
+
+  const handleSkillSave = () => {
+    // Update in skills array
+    setSkills(prev => prev.map(s => 
+      (s.skill_id === currentSkill.skill_id && 
+       s.skill_level === currentSkill.skill_level && 
+       s.skill_sublevel === currentSkill.skill_sublevel) 
+        ? { ...currentSkill, _relatedData: undefined } 
+        : s
+    ));
+
+    // Update related skillgrp data if it exists
+    if (currentSkill._relatedData) {
+      setSkillGrpData(prev => prev.map(s => 
+        (s.skill_id === currentSkill.skill_id && 
+         s.skill_level === currentSkill.skill_level && 
+         s.skill_sublevel === currentSkill.skill_sublevel) 
+          ? currentSkill._relatedData 
+          : s
+      ));
+    }
+
+    setEditSkillDialogOpen(false);
+    showSnackbar('Skill updated locally. Click Save to persist changes.', 'info');
+  };
+
+  const handleDeleteSkill = async (skill) => {
+    if (!confirm(`Are you sure you want to delete skill "${stripBrackets(skill.name)}" (ID: ${skill.skill_id}, Level: ${skill.skill_level})? This will remove it from all related files.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:3001/api/delete/skill', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          skillId: skill.skill_id,
+          skillLevel: skill.skill_level,
+          skillSublevel: skill.skill_sublevel
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Remove from local state
+        setSkills(prev => prev.filter(s => 
+          !(s.skill_id === skill.skill_id && 
+            s.skill_level === skill.skill_level && 
+            s.skill_sublevel === skill.skill_sublevel)
+        ));
+        setSkillGrpData(prev => prev.filter(s => 
+          !(s.skill_id === skill.skill_id && 
+            s.skill_level === skill.skill_level && 
+            s.skill_sublevel === skill.skill_sublevel)
+        ));
+        
+        showSnackbar(result.message + ' ✅', 'success');
+      } else {
+        showSnackbar('Error deleting skill: ' + result.message, 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting skill:', error);
+      showSnackbar('Error connecting to server. Make sure backend is running.', 'error');
+    }
+  };
+
+  const handleSaveSkills = async () => {
+    try {
+      const skillNameContent = serializeSkillNameFile(skills);
+      const skillGrpContent = serializeSkillGrpFile(skillGrpData);
+      
+      const response = await fetch('http://localhost:3001/api/save/skills', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          skillName: skillNameContent,
+          skillGrp: skillGrpContent
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        showSnackbar(result.message + ' ✅', 'success');
+      } else {
+        showSnackbar('Error saving skill files: ' + result.message, 'error');
+      }
+    } catch (error) {
+      console.error('Error saving skill files:', error);
+      showSnackbar('Error connecting to server. Make sure backend is running.', 'error');
+    }
+  };
+
+  const getSkillIconUrl = (skill) => {
+    const relatedData = getRelatedSkillData(skill.skill_id, skill.skill_level, skill.skill_sublevel);
+    if (relatedData?.icon) {
+      const iconPath = extractSkillIconPath(relatedData.icon);
+      if (iconPath) {
+        return `/${iconPath}.png`;
+      }
+    }
+    return null;
+  };
+
+  const handleDuplicateSkill = (skill) => {
+    const relatedData = getRelatedSkillData(skill.skill_id, skill.skill_level, skill.skill_sublevel);
+    
+    // Find max skill_id across all skills
+    const allSkillIds = skills.map(s => parseInt(s.skill_id) || 0);
+    const maxSkillId = Math.max(...allSkillIds, 0);
+    const newSkillId = (maxSkillId + 1).toString();
+    
+    const newSkill = {
+      ...skill,
+      skill_id: newSkillId,
+      skill_level: '1',
+      skill_sublevel: '0',
+      name: `[Copy of ${stripBrackets(skill.name)}]`,
+    };
+    
+    // Add to skills array
+    setSkills(prev => [...prev, newSkill]);
+    
+    // If there's related data, duplicate it too
+    if (relatedData) {
+      const newRelatedData = {
+        ...relatedData,
+        skill_id: newSkillId,
+        skill_level: '1',
+        skill_sublevel: '0',
+      };
+      setSkillGrpData(prev => [...prev, newRelatedData]);
+    }
+    
+    // Set search term to show the duplicated skill
+    setSkillSearchTerm(newSkillId);
+    
+    showSnackbar(`Skill duplicated with ID: ${newSkillId}`, 'success');
   };
 
   const handleGenerateSetItemGrp = async () => {
@@ -691,7 +1014,7 @@ function App() {
             color="success"
             startIcon={<SaveIcon />}
             onClick={handleSave}
-            disabled={currentTab === 1}
+            disabled={currentTab === 2}
           >
             Save Changes
           </Button>
@@ -699,6 +1022,7 @@ function App() {
         
         <Tabs value={currentTab} onChange={(e, val) => setCurrentTab(val)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tab label="Items" />
+          <Tab label="Skills" />
           <Tab label="Tools" icon={<BuildIcon />} iconPosition="start" />
         </Tabs>
       </Paper>
@@ -900,18 +1224,21 @@ function App() {
                           variant="standard"
                         />
                       ) : (
-                        <Typography variant="body2" fontWeight="bold">
-                          {stripBrackets(item.name)} <Chip 
-                            label={getCrystalType(item.id)} 
-                            size="small" 
-                            sx={{ 
-                              ml: 1, 
-                              height: 20, 
-                              fontSize: '0.7rem',
-                              display: getCrystalType(item.id) ? 'inline-flex' : 'none'
-                            }} 
-                          />
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" fontWeight="bold" component="span">
+                            {stripBrackets(item.name)}
+                          </Typography>
+                          {getCrystalType(item.id) && (
+                            <Chip 
+                              label={getCrystalType(item.id)} 
+                              size="small" 
+                              sx={{ 
+                                height: 20, 
+                                fontSize: '0.7rem'
+                              }} 
+                            />
+                          )}
+                        </Box>
                       )}
                     </TableCell>
                     <TableCell
@@ -1015,6 +1342,361 @@ function App() {
       )}
 
       {currentTab === 1 && (
+        <>
+          <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+            <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+              <TextField
+                placeholder="Search by skill ID, name, or description..."
+                value={skillSearchTerm}
+                onChange={(e) => setSkillSearchTerm(e.target.value)}
+                sx={{ flexGrow: 1, minWidth: 300 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<SaveIcon />}
+                onClick={handleSaveSkills}
+              >
+                Save Skills
+              </Button>
+            </Box>
+
+            <Box sx={{ mb: 2 }}>
+              <Chip label={`Total Skills: ${skills.length}`} color="primary" sx={{ mr: 1 }} />
+              <Chip label={`Filtered: ${filteredSkills.length}`} color="secondary" sx={{ mr: 1 }} />
+              <Chip label={`Skill Properties: ${skillGrpData.length}`} />
+            </Box>
+          </Paper>
+
+          <TableContainer component={Paper} elevation={3}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Icon</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>ID</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Level</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Sublevel</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Name</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Description</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>MP Cost</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Cast Range</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredSkills
+                  .slice(skillPage * skillRowsPerPage, skillPage * skillRowsPerPage + skillRowsPerPage)
+                  .map((skill) => {
+                    const iconUrl = getSkillIconUrl(skill);
+                    const relatedData = getRelatedSkillData(skill.skill_id, skill.skill_level, skill.skill_sublevel);
+                    
+                    return (
+                      <TableRow key={`${skill.skill_id}-${skill.skill_level}-${skill.skill_sublevel}`} hover>
+                        <TableCell>
+                          {iconUrl && (
+                            <img
+                              src={iconUrl}
+                              alt={skill.name}
+                              style={{ width: 32, height: 32 }}
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell
+                          onClick={() => handleSkillCellClick(skill, 'skill_id')}
+                          sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                        >
+                          {editingSkillCell?.skillId === skill.skill_id && 
+                           editingSkillCell?.skillLevel === skill.skill_level && 
+                           editingSkillCell?.skillSublevel === skill.skill_sublevel && 
+                           editingSkillCell?.field === 'skill_id' ? (
+                            <TextField
+                              fullWidth
+                              size="small"
+                              value={editingSkillValue}
+                              onChange={(e) => setEditingSkillValue(e.target.value)}
+                              onBlur={handleSkillCellBlur}
+                              onKeyDown={handleSkillCellKeyDown}
+                              autoFocus
+                              variant="standard"
+                            />
+                          ) : (
+                            <Typography variant="body2">{skill.skill_id}</Typography>
+                          )}
+                        </TableCell>
+                        <TableCell
+                          onClick={() => handleSkillCellClick(skill, 'skill_level')}
+                          sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                        >
+                          {editingSkillCell?.skillId === skill.skill_id && 
+                           editingSkillCell?.skillLevel === skill.skill_level && 
+                           editingSkillCell?.skillSublevel === skill.skill_sublevel && 
+                           editingSkillCell?.field === 'skill_level' ? (
+                            <TextField
+                              fullWidth
+                              size="small"
+                              value={editingSkillValue}
+                              onChange={(e) => setEditingSkillValue(e.target.value)}
+                              onBlur={handleSkillCellBlur}
+                              onKeyDown={handleSkillCellKeyDown}
+                              autoFocus
+                              variant="standard"
+                            />
+                          ) : (
+                            <Typography variant="body2">{skill.skill_level}</Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>{skill.skill_sublevel || '0'}</TableCell>
+                        <TableCell
+                          onClick={() => handleSkillCellClick(skill, 'name')}
+                          sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                        >
+                          {editingSkillCell?.skillId === skill.skill_id && 
+                           editingSkillCell?.skillLevel === skill.skill_level && 
+                           editingSkillCell?.skillSublevel === skill.skill_sublevel && 
+                           editingSkillCell?.field === 'name' ? (
+                            <TextField
+                              fullWidth
+                              size="small"
+                              value={editingSkillValue}
+                              onChange={(e) => setEditingSkillValue(e.target.value)}
+                              onBlur={handleSkillCellBlur}
+                              onKeyDown={handleSkillCellKeyDown}
+                              autoFocus
+                              variant="standard"
+                            />
+                          ) : (
+                            <Typography variant="body2">{stripBrackets(skill.name)}</Typography>
+                          )}
+                        </TableCell>
+                        <TableCell
+                          onClick={() => handleSkillCellClick(skill, 'desc')}
+                          sx={{ maxWidth: 400, wordWrap: 'break-word', whiteSpace: 'normal', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                        >
+                          {editingSkillCell?.skillId === skill.skill_id && 
+                           editingSkillCell?.skillLevel === skill.skill_level && 
+                           editingSkillCell?.skillSublevel === skill.skill_sublevel && 
+                           editingSkillCell?.field === 'desc' ? (
+                            <TextField
+                              fullWidth
+                              size="small"
+                              multiline
+                              rows={3}
+                              value={editingSkillValue}
+                              onChange={(e) => setEditingSkillValue(e.target.value)}
+                              onBlur={handleSkillCellBlur}
+                              onKeyDown={handleSkillCellKeyDown}
+                              autoFocus
+                              variant="standard"
+                            />
+                          ) : (
+                            <Typography variant="body2">{stripBrackets(skill.desc)}</Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>{relatedData?.mp_consume || '-'}</TableCell>
+                        <TableCell>{relatedData?.cast_range || '-'}</TableCell>
+                        <TableCell>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditSkillClick(skill)}
+                            color="primary"
+                            title="Edit"
+                          >
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDuplicateSkill(skill)}
+                            color="secondary"
+                            title="Duplicate"
+                          >
+                            <ContentCopyIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteSkill(skill)}
+                            color="error"
+                            title="Delete"
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+              </TableBody>
+            </Table>
+            <TablePagination
+              component="div"
+              count={filteredSkills.length}
+              page={skillPage}
+              onPageChange={(e, newPage) => setSkillPage(newPage)}
+              rowsPerPage={skillRowsPerPage}
+              onRowsPerPageChange={(e) => {
+                setSkillRowsPerPage(parseInt(e.target.value, 10));
+                setSkillPage(0);
+              }}
+              rowsPerPageOptions={[10, 25, 50, 100]}
+            />
+          </TableContainer>
+
+          {/* Edit Skill Dialog */}
+          <Dialog open={editSkillDialogOpen} onClose={() => setEditSkillDialogOpen(false)} maxWidth="md" fullWidth>
+            <DialogTitle>Edit Skill: {currentSkill && stripBrackets(currentSkill.name)}</DialogTitle>
+            <DialogContent>
+              {currentSkill && (
+                <Box sx={{ mt: 2 }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={4}>
+                      <TextField
+                        fullWidth
+                        label="Skill ID"
+                        value={currentSkill.skill_id || ''}
+                        disabled
+                        variant="outlined"
+                      />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <TextField
+                        fullWidth
+                        label="Level"
+                        value={currentSkill.skill_level || ''}
+                        disabled
+                        variant="outlined"
+                      />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <TextField
+                        fullWidth
+                        label="Sublevel"
+                        value={currentSkill.skill_sublevel || ''}
+                        disabled
+                        variant="outlined"
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Name"
+                        value={stripBrackets(currentSkill.name || '')}
+                        onChange={(e) => handleEditSkillChange('name', `[${e.target.value}]`)}
+                        variant="outlined"
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Description"
+                        value={stripBrackets(currentSkill.desc || '')}
+                        onChange={(e) => handleEditSkillChange('desc', `[${e.target.value}]`)}
+                        variant="outlined"
+                        multiline
+                        rows={4}
+                      />
+                    </Grid>
+
+                    {currentSkill._relatedData && (
+                      <>
+                        <Grid item xs={12}>
+                          <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
+                            Skill Properties
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="MP Consume"
+                            value={currentSkill._relatedData.mp_consume || ''}
+                            onChange={(e) => handleRelatedSkillDataChange('mp_consume', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="HP Consume"
+                            value={currentSkill._relatedData.hp_consume || ''}
+                            onChange={(e) => handleRelatedSkillDataChange('hp_consume', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="Cast Range"
+                            value={currentSkill._relatedData.cast_range || ''}
+                            onChange={(e) => handleRelatedSkillDataChange('cast_range', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="Hit Time"
+                            value={currentSkill._relatedData.hit_time || ''}
+                            onChange={(e) => handleRelatedSkillDataChange('hit_time', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="Cool Time"
+                            value={currentSkill._relatedData.cool_time || ''}
+                            onChange={(e) => handleRelatedSkillDataChange('cool_time', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="Reuse Delay"
+                            value={currentSkill._relatedData.reuse_delay || ''}
+                            onChange={(e) => handleRelatedSkillDataChange('reuse_delay', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            label="Icon"
+                            value={currentSkill._relatedData.icon || ''}
+                            onChange={(e) => handleRelatedSkillDataChange('icon', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                            helperText="Format: [icon.skill0001]"
+                          />
+                        </Grid>
+                      </>
+                    )}
+                  </Grid>
+                </Box>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setEditSkillDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleSkillSave} variant="contained" color="primary">
+                Save Changes
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </>
+      )}
+
+      {currentTab === 2 && (
         <Paper elevation={3} sx={{ p: 3 }}>
           <Typography variant="h5" gutterBottom>
             Tools

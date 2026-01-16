@@ -144,6 +144,129 @@ app.post('/api/save/etc', async (req, res) => {
   }
 });
 
+// Delete skill from skill files
+app.delete('/api/delete/skill', async (req, res) => {
+  try {
+    const { skillId, skillLevel, skillSublevel } = req.body;
+    
+    if (!skillId) {
+      return res.status(400).json({ success: false, message: 'Skill ID is required' });
+    }
+
+    const txtFiles = [
+      { path: path.join(__dirname, './public/txt/SkillName_Classic-eu.txt'), type: 'skillname' },
+      { path: path.join(__dirname, './public/txt/Skillgrp_Classic.txt'), type: 'skillgrp' }
+    ];
+
+    let deletedFrom = [];
+    let errors = [];
+
+    for (const file of txtFiles) {
+      try {
+        const content = await fs.readFile(file.path, 'utf-8');
+        let modified = false;
+        let newContent = '';
+
+        const blocks = content.split('skill_end');
+        for (const block of blocks) {
+          if (block.includes('skill_begin')) {
+            // Check if this block contains the skill
+            const idMatch = block.match(/skill_id=(\d+)/);
+            const levelMatch = block.match(/skill_level=(\d+)/);
+            const sublevelMatch = block.match(/skill_sublevel=(\d+)/);
+            
+            const matchesId = idMatch && idMatch[1] === skillId;
+            const matchesLevel = !skillLevel || (levelMatch && levelMatch[1] === skillLevel);
+            const matchesSublevel = !skillSublevel || (sublevelMatch && sublevelMatch[1] === skillSublevel);
+            
+            if (matchesId && matchesLevel && matchesSublevel) {
+              modified = true;
+              continue; // Skip this block (delete it)
+            }
+          }
+          newContent += block;
+          if (block.trim()) {
+            newContent += 'skill_end';
+          }
+        }
+
+        if (modified) {
+          // Create backup before modifying
+          const backupPath = file.path + '.backup';
+          try {
+            await fs.writeFile(backupPath, content, 'utf-8');
+          } catch (err) {
+            console.log('Could not create backup for', file.path);
+          }
+
+          // Write the modified content
+          await fs.writeFile(file.path, newContent, 'utf-8');
+          deletedFrom.push(file.type);
+        }
+      } catch (err) {
+        errors.push(`${file.type}: ${err.message}`);
+      }
+    }
+
+    if (deletedFrom.length > 0) {
+      res.json({ 
+        success: true, 
+        message: `Skill ${skillId} deleted from: ${deletedFrom.join(', ')}`,
+        deletedFrom,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } else {
+      res.json({ 
+        success: false, 
+        message: `Skill ${skillId} not found in any files`,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    }
+  } catch (error) {
+    console.error('Error deleting skill:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save skill files
+app.post('/api/save/skills', async (req, res) => {
+  try {
+    const { skillName, skillGrp } = req.body;
+    const results = [];
+    
+    if (skillName) {
+      const filePath = path.join(__dirname, './public/txt/SkillName_Classic-eu.txt');
+      const backupPath = path.join(__dirname, './public/txt/SkillName_Classic-eu.txt.backup');
+      try {
+        const originalContent = await fs.readFile(filePath, 'utf-8');
+        await fs.writeFile(backupPath, originalContent, 'utf-8');
+      } catch (err) {
+        console.log('No existing SkillName file to backup');
+      }
+      await fs.writeFile(filePath, skillName, 'utf-8');
+      results.push('SkillName');
+    }
+    
+    if (skillGrp) {
+      const filePath = path.join(__dirname, './public/txt/Skillgrp_Classic.txt');
+      const backupPath = path.join(__dirname, './public/txt/Skillgrp_Classic.txt.backup');
+      try {
+        const originalContent = await fs.readFile(filePath, 'utf-8');
+        await fs.writeFile(backupPath, originalContent, 'utf-8');
+      } catch (err) {
+        console.log('No existing Skillgrp file to backup');
+      }
+      await fs.writeFile(filePath, skillGrp, 'utf-8');
+      results.push('Skillgrp');
+    }
+    
+    res.json({ success: true, message: `Files saved: ${results.join(', ')}` });
+  } catch (error) {
+    console.error('Error saving skill files:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Delete item from all files
 app.delete('/api/delete/item', async (req, res) => {
   try {

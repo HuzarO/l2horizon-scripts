@@ -184,3 +184,139 @@ export function determineItemType(id) {
   
   return 'etc';
 }
+
+/**
+ * Parse SkillName file
+ */
+export function parseSkillNameFile(content) {
+  const skills = [];
+  const blocks = content.split('skill_end').filter(b => b.trim());
+  
+  for (const block of blocks) {
+    if (block.includes('skill_begin')) {
+      const skill = {};
+      const parts = block.split(/[\t\n]+/).filter(p => p.trim());
+      
+      for (const part of parts) {
+        if (part.includes('=') && !part.includes('skill_begin')) {
+          const equalIndex = part.indexOf('=');
+          const key = part.substring(0, equalIndex).trim();
+          let value = part.substring(equalIndex + 1).trim();
+          skill[key] = value;
+        }
+      }
+      
+      if (skill.skill_id) {
+        skills.push(skill);
+      }
+    }
+  }
+  
+  return skills;
+}
+
+/**
+ * Parse Skillgrp file
+ */
+export function parseSkillGrpFile(content) {
+  const skills = [];
+  const blocks = content.split('skill_end').filter(b => b.trim());
+  
+  for (const block of blocks) {
+    if (block.includes('skill_begin')) {
+      const skill = {};
+      const parts = block.split(/[\t\n]+/).filter(p => p.trim());
+      
+      for (const part of parts) {
+        if (part.includes('=') && !part.includes('skill_begin')) {
+          const equalIndex = part.indexOf('=');
+          const key = part.substring(0, equalIndex).trim();
+          let value = part.substring(equalIndex + 1).trim();
+          skill[key] = value;
+        }
+      }
+      
+      if (skill.skill_id) {
+        skills.push(skill);
+      }
+    }
+  }
+  
+  return skills;
+}
+
+/**
+ * Serialize SkillName data back to file format
+ */
+export function serializeSkillNameFile(skills) {
+  let content = '';
+  
+  for (const skill of skills) {
+    const parts = ['skill_begin'];
+    
+    const keys = ['skill_id', 'skill_level', 'skill_sublevel', 'name', 'desc', 
+                  'desc_param', 'enchant_name', 'enchant_name_param', 
+                  'enchant_desc', 'enchant_desc_param'];
+    
+    for (const key of keys) {
+      if (skill[key] !== undefined) {
+        parts.push(`${key}=${skill[key]}`);
+      }
+    }
+    
+    parts.push('skill_end');
+    content += parts.join('\t') + '\n';
+  }
+  
+  return content;
+}
+
+/**
+ * Serialize Skillgrp data back to file format
+ */
+export function serializeSkillGrpFile(skills) {
+  let content = '';
+  
+  for (const skill of skills) {
+    const parts = ['skill_begin'];
+    
+    // Get all keys
+    const keys = Object.keys(skill);
+    
+    for (const key of keys) {
+      if (skill[key] !== undefined) {
+        parts.push(`${key}=${skill[key]}`);
+      }
+    }
+    
+    parts.push('skill_end');
+    content += parts.join('\t') + '\n';
+  }
+  
+  return content;
+}
+
+/**
+ * Extract skill icon path from skill data
+ */
+export function extractSkillIconPath(iconData) {
+  if (!iconData) return null;
+  
+  // Parse format: [icon.skill0001] or similar
+  const match = iconData.match(/\[([^\]]+)\]/);
+  if (match && match[1] !== 'None') {
+    const iconPath = match[1].replace('icon.', '');
+    
+    // Check if it's in BranchIcon folder (new icons)
+    // BranchIcon icons don't have the icon. prefix typically
+    if (iconPath.startsWith('g_') || iconPath.startsWith('s_g_') || 
+        iconPath.startsWith('etc_') || iconPath.startsWith('skill_')) {
+      return 'BranchIcon/Icon/' + iconPath;
+    }
+    
+    // Default to skill_i folder for old format
+    return 'Icon/skill_i/' + iconPath;
+  }
+  
+  return null;
+}
