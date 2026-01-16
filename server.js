@@ -144,6 +144,105 @@ app.post('/api/save/etc', async (req, res) => {
   }
 });
 
+// Delete item from all files
+app.delete('/api/delete/item', async (req, res) => {
+  try {
+    const { itemId } = req.body;
+    
+    if (!itemId) {
+      return res.status(400).json({ success: false, message: 'Item ID is required' });
+    }
+
+    const txtFiles = [
+      { path: path.join(__dirname, './public/txt/ItemName_Classic-eu.txt'), type: 'itemname' },
+      { path: path.join(__dirname, './public/txt/Weapongrp_Classic.txt'), type: 'weapon' },
+      { path: path.join(__dirname, './public/txt/Armorgrp_Classic.txt'), type: 'armor' },
+      { path: path.join(__dirname, './public/txt/EtcItemgrp_Classic.txt'), type: 'etc' }
+    ];
+
+    let deletedFrom = [];
+    let errors = [];
+
+    for (const file of txtFiles) {
+      try {
+        const content = await fs.readFile(file.path, 'utf-8');
+        let modified = false;
+        let newContent = '';
+
+        if (file.type === 'itemname') {
+          // Parse ItemName file
+          const blocks = content.split('item_name_end');
+          for (const block of blocks) {
+            if (block.includes('item_name_begin')) {
+              // Check if this block contains the item ID
+              const idMatch = block.match(/id=(\d+)/);
+              if (idMatch && idMatch[1] === itemId) {
+                modified = true;
+                continue; // Skip this block (delete it)
+              }
+            }
+            newContent += block;
+            if (block.trim()) {
+              newContent += 'item_name_end';
+            }
+          }
+        } else {
+          // Parse Weapon/Armor/Etc files
+          const blocks = content.split('item_end');
+          for (const block of blocks) {
+            if (block.includes('item_begin')) {
+              // Check if this block contains the object_id
+              const idMatch = block.match(/object_id=(\d+)/);
+              if (idMatch && idMatch[1] === itemId) {
+                modified = true;
+                continue; // Skip this block (delete it)
+              }
+            }
+            newContent += block;
+            if (block.trim()) {
+              newContent += 'item_end';
+            }
+          }
+        }
+
+        if (modified) {
+          // Create backup before modifying
+          const backupPath = file.path + '.backup';
+          try {
+            await fs.writeFile(backupPath, content, 'utf-8');
+          } catch (err) {
+            console.log('Could not create backup for', file.path);
+          }
+
+          // Write the modified content
+          await fs.writeFile(file.path, newContent, 'utf-8');
+          deletedFrom.push(file.type);
+        }
+      } catch (err) {
+        errors.push(`${file.type}: ${err.message}`);
+      }
+    }
+
+    if (deletedFrom.length > 0) {
+      res.json({ 
+        success: true, 
+        message: `Item ${itemId} deleted from: ${deletedFrom.join(', ')}`,
+        deletedFrom,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } else {
+      res.json({ 
+        success: false, 
+        message: `Item ${itemId} not found in any files`,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    }
+  } catch (error) {
+    console.error('Error deleting item:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

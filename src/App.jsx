@@ -44,6 +44,7 @@ import {
   ContentCopy as ContentCopyIcon,
   Build as BuildIcon,
   PlayArrow as PlayArrowIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { parseItemNameFile, parseItemGroupFile, serializeItemNameFile, serializeItemGroupFile, extractIconPath } from './utils/fileParser';
 
@@ -385,6 +386,39 @@ function App() {
       // New column, default to ascending
       setSortBy(column);
       setSortDirection('asc');
+    }
+  };
+
+  const handleDelete = async (item) => {
+    if (!confirm(`Are you sure you want to delete "${stripBrackets(item.name)}" (ID: ${item.id})? This will remove it from all related files.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:3001/api/delete/item', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ itemId: item.id }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Remove from local state
+        setItems(prev => prev.filter(i => i.id !== item.id));
+        setWeaponData(prev => prev.filter(i => i.object_id !== item.id));
+        setArmorData(prev => prev.filter(i => i.object_id !== item.id));
+        setEtcData(prev => prev.filter(i => i.object_id !== item.id));
+        
+        showSnackbar(result.message + ' ✅', 'success');
+      } else {
+        showSnackbar('Error deleting item: ' + result.message, 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      showSnackbar('Error connecting to server. Make sure backend is running.', 'error');
     }
   };
 
@@ -950,6 +984,14 @@ function App() {
                         title="Duplicate"
                       >
                         <ContentCopyIcon />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDelete(item)}
+                        color="error"
+                        title="Delete"
+                      >
+                        <DeleteIcon />
                       </IconButton>
                     </TableCell>
                   </TableRow>
