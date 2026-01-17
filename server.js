@@ -461,7 +461,7 @@ app.post('/api/tools/generate-setitemgrp', async (req, res) => {
       const id = parseInt(skillId);
       const lowerBound = Math.floor(id / 100) * 100;
       const upperBound = lowerBound + 99;
-      return path.join(__dirname, `../xml/stats/skills/${lowerBound}-${upperBound}.xml`);
+      return path.join(__dirname, `./xml/stats/skills/${lowerBound}-${upperBound}.xml`);
     };
     
     const parseSkillEffects = (forTag) => {
