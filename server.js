@@ -391,9 +391,47 @@ app.post('/api/save/merchant-buylists', async (req, res) => {
   }
 });
 
+// Save multisell file
+app.post('/api/save/multisell', async (req, res) => {
+  try {
+    const { filename, content } = req.body;
+    const filePath = path.join(__dirname, './xml/multisell', filename);
+    
+    // Create backup
+    const backupPath = path.join(__dirname, './xml/multisell', `${filename}.backup`);
+    try {
+      const originalContent = await fs.readFile(filePath, 'utf-8');
+      await fs.writeFile(backupPath, originalContent, 'utf-8');
+    } catch (err) {
+      console.log(`No existing ${filename} to backup`);
+    }
+    
+    // Save new content
+    await fs.writeFile(filePath, content, 'utf-8');
+    
+    res.json({ success: true, message: 'Multisell file saved successfully' });
+  } catch (error) {
+    console.error('Error saving multisell file:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+// List multisell files
+app.get('/api/multisell/list', async (req, res) => {
+  try {
+    const multisellDir = path.join(__dirname, './xml/multisell');
+    const files = await fs.readdir(multisellDir);
+    const xmlFiles = files.filter(file => file.endsWith('.xml') && !file.includes('backup'));
+    res.json({ success: true, files: xmlFiles });
+  } catch (error) {
+    console.error('Error listing multisell files:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 // Tools API - Generate SetItemGrp

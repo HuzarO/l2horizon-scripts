@@ -388,6 +388,7 @@ export function parseItemsXML(xmlText) {
     const item = {
       id: node.getAttribute('id'),
       name: node.getAttribute('name'),
+      add_name: node.getAttribute('add_name') || null,
       type: 'weapon',
       itemType: null,
       slot: null,
@@ -424,6 +425,7 @@ export function parseItemsXML(xmlText) {
     const item = {
       id: node.getAttribute('id'),
       name: node.getAttribute('name'),
+      add_name: node.getAttribute('add_name') || null,
       type: 'armor',
       itemType: null,
       slot: null,
@@ -460,6 +462,7 @@ export function parseItemsXML(xmlText) {
     const item = {
       id: node.getAttribute('id'),
       name: node.getAttribute('name'),
+      add_name: node.getAttribute('add_name') || null,
       type: 'etcitem',
       itemType: null,
       slot: null,
@@ -547,4 +550,113 @@ export function parseNpcsXML(xmlText) {
   });
   
   return npcs;
+}
+
+/**
+ * Parse Multisell XML files (from xml/multisell folder)
+ */
+export function parseMultisellXML(xmlText) {
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+  
+  // Parse config - get all attributes dynamically
+  const configNode = xmlDoc.querySelector('config');
+  const config = {};
+  if (configNode) {
+    Array.from(configNode.attributes).forEach(attr => {
+      config[attr.name] = attr.value;
+    });
+  }
+  // Ensure default values for common attributes
+  if (!config.showall) config.showall = 'false';
+  if (!config.notax) config.notax = 'false';
+  if (!config.keepenchanted) config.keepenchanted = 'false';
+  if (!config.nokey) config.nokey = 'false';
+  if (!config.is_chanced) config.is_chanced = 'false';
+  
+  // Parse items
+  const items = [];
+  const itemNodes = xmlDoc.querySelectorAll('list > item');
+  
+  itemNodes.forEach((itemNode, index) => {
+    const ingredients = [];
+    const ingredientNodes = itemNode.querySelectorAll('ingredient');
+    ingredientNodes.forEach((ing) => {
+      const ingredient = {
+        id: ing.getAttribute('id'),
+        count: ing.getAttribute('count')
+      };
+      // Parse all additional attributes
+      Array.from(ing.attributes).forEach(attr => {
+        if (attr.name !== 'id' && attr.name !== 'count') {
+          ingredient[attr.name] = attr.value;
+        }
+      });
+      ingredients.push(ingredient);
+    });
+    
+    const productions = [];
+    const productionNodes = itemNode.querySelectorAll('production');
+    productionNodes.forEach((prod) => {
+      const production = {
+        id: prod.getAttribute('id'),
+        count: prod.getAttribute('count')
+      };
+      // Parse all additional attributes (chance, enchant, elemental attributes, etc.)
+      Array.from(prod.attributes).forEach(attr => {
+        if (attr.name !== 'id' && attr.name !== 'count') {
+          production[attr.name] = attr.value;
+        }
+      });
+      productions.push(production);
+    });
+    
+    items.push({
+      index,
+      ingredients,
+      productions
+    });
+  });
+  
+  return { config, items };
+}
+
+/**
+ * Serialize Multisell data back to XML
+ */
+export function serializeMultisellXML(data) {
+  let xml = `<?xml version='1.0' encoding='utf-8'?>\n<list>\n`;
+  
+  // Add config - output all attributes dynamically
+  const configAttrs = Object.entries(data.config)
+    .map(([key, value]) => `${key}="${value}"`)
+    .join(' ');
+  xml += `  <config ${configAttrs} />\n\n`;
+  
+  // Add items
+  data.items.forEach((item) => {
+    xml += `  <item>\n`;
+    
+    // Add ingredients with all attributes
+    item.ingredients.forEach((ing) => {
+      const attrs = Object.entries(ing)
+        .map(([key, value]) => `${key}="${value}"`)
+        .join(' ');
+      xml += `    <ingredient ${attrs} />\n`;
+    });
+    
+    // Add productions with all attributes
+    item.productions.forEach((prod) => {
+      const attrs = Object.entries(prod)
+        .map(([key, value]) => `${key}="${value}"`)
+        .join(' ');
+      xml += `    <production ${attrs} />\n`;
+    });
+    
+    xml += `  </item>\n\n`;
+  });
+  
+  xml += `</list>\n`;
+  
+  return xml;
 }

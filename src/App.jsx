@@ -32,6 +32,7 @@ import {
   ListItem,
   ListItemText,
   CircularProgress,
+  MenuItem,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -49,7 +50,7 @@ import {
   DragIndicator as DragIndicatorIcon,
   Sort as SortIcon,
 } from '@mui/icons-material';
-import { parseItemNameFile, parseItemGroupFile, serializeItemNameFile, serializeItemGroupFile, extractIconPath, parseSkillNameFile, parseSkillGrpFile, serializeSkillNameFile, serializeSkillGrpFile, extractSkillIconPath, parseMerchantBuylistsXML, serializeMerchantBuylistsXML, parseItemsXML, getItemIconPath, parseNpcsXML } from './utils/fileParser';
+import { parseItemNameFile, parseItemGroupFile, serializeItemNameFile, serializeItemGroupFile, extractIconPath, parseSkillNameFile, parseSkillGrpFile, serializeSkillNameFile, serializeSkillGrpFile, extractSkillIconPath, parseMerchantBuylistsXML, serializeMerchantBuylistsXML, parseItemsXML, getItemIconPath, parseNpcsXML, parseMultisellXML, serializeMultisellXML } from './utils/fileParser';
 
 // Helper to strip brackets for display
 const stripBrackets = (value) => {
@@ -122,6 +123,15 @@ function App() {
   const [draggedItemIndex, setDraggedItemIndex] = useState(null);
   const [duplicateItemDialog, setDuplicateItemDialog] = useState({ open: false, item: null });
   const [copiedTradelistItems, setCopiedTradelistItems] = useState(null);
+
+  // Multisell state
+  const [multisellFiles, setMultisellFiles] = useState([]);
+  const [selectedMultisell, setSelectedMultisell] = useState(null);
+  const [multisellSearchTerm, setMultisellSearchTerm] = useState('');
+  const [multisellItemSearchDialog, setMultisellItemSearchDialog] = useState({ open: false, type: null, itemIndex: null, ingredientIndex: null, productionIndex: null });
+  const [multisellItemSearchTerm, setMultisellItemSearchTerm] = useState('');
+  const [multisellItemPage, setMultisellItemPage] = useState(0);
+  const [multisellItemRowsPerPage, setMultisellItemRowsPerPage] = useState(20);
 
   // Load data from files
   useEffect(() => {
@@ -274,6 +284,13 @@ function App() {
         console.log('Merchant buylists not found or error loading:', buylistError);
       }
 
+      // Load multisell files
+      try {
+        await loadMultisellFiles();
+      } catch (multisellError) {
+        console.log('Multisell files not found or error loading:', multisellError);
+      }
+
       showSnackbar('Files loaded successfully', 'success');
     } catch (error) {
       console.error('Error loading files:', error);
@@ -306,7 +323,30 @@ function App() {
         '6000-6099', '6100-6199', '6200-6299', '6300-6399', '6400-6499', '6500-6599', '6600-6699', '6700-6799', '6800-6899', '6900-6999',
         '7000-7099', '7100-7199', '7200-7299', '7300-7399', '7400-7499', '7500-7599', '7600-7699', '7700-7799', '7800-7899', '7900-7999',
         '8000-8099', '8100-8199', '8200-8299', '8300-8399', '8400-8499', '8500-8599', '8600-8699', '8700-8799', '8800-8899', '8900-8999',
-        '9000-9099', '9100-9199', '9200-9299'
+        '9000-9099', '9100-9199', '9200-9299', '9300-9399', '9400-9499', '9500-9599', '9600-9699', '9700-9799', '9800-9899', '9900-9999',
+        '10000-10099', '10100-10199', '10200-10299', '10300-10399', '10400-10499', '10500-10599', '10600-10699', '10700-10799', '10800-10899', '10900-10999',
+        '11000-11099', '11100-11199', '11200-11299', '11300-11399', '11400-11499', '11500-11599', '11600-11699', '11700-11799', '11800-11899', '11900-11999',
+        '12000-12099', '12100-12199', '12200-12299', '12300-12399', '12400-12499', '12500-12599', '12600-12699', '12700-12799', '12800-12899', '12900-12999',
+        '13000-13099', '13100-13199', '13200-13299', '13300-13399', '13400-13499', '13500-13599', '13600-13699', '13700-13799', '13800-13899', '13900-13999',
+        '14000-14099', '14100-14199', '14200-14299', '14300-14399', '14400-14499', '14500-14599', '14600-14699', '14700-14799', '14800-14899', '14900-14999',
+        '15000-15099', '15100-15199', '15200-15299', '15300-15399', '15400-15499', '15500-15599', '15600-15699', '15700-15799', '15800-15899', '15900-15999',
+        '16000-16099', '16100-16199', '16200-16299', '16300-16399', '16400-16499', '16500-16599', '16600-16699', '16700-16799', '16800-16899', '16900-16999',
+        '17000-17099', '17100-17199', '17200-17299', '17300-17399', '17400-17499', '17500-17599', '17600-17699', '17700-17799', '17800-17899', '17900-17999',
+        '18000-18099', '18100-18199', '18200-18299', '18300-18399', '18400-18499', '18500-18599', '18600-18699', '18700-18799', '18800-18899', '18900-18999',
+        '19000-19099', '19100-19199', '19200-19299', '19300-19399', '19400-19499', '19500-19599', '19600-19699', '19700-19799', '19800-19899', '19900-19999',
+        '20000-20099', '20100-20199', '20200-20299', '20300-20399', '20400-20499', '20500-20599', '20600-20699', '20700-20799', '20800-20899', '20900-20999',
+        '21000-21099', '21100-21199', '21200-21299', '21300-21399', '21400-21499', '21500-21599', '21600-21699', '21700-21799', '21800-21899', '21900-21999',
+        '22000-22099', '22100-22199', '22200-22299', '22300-22399', '22400-22499', '22500-22599', '22600-22699', '22700-22799', '22800-22899', '22900-22999',
+        '29000-29099', '29100-29199', '29200-29299', '29300-29399', '29400-29499', '29500-29599', '29600-29699', '29700-29799', '29800-29899', '29900-29999',
+        '30000-30099', '30100-30199', '30200-30299', '30300-30399', '30400-30499', '30500-30599', '30600-30699', '30700-30799', '30800-30899', '30900-30999',
+        '31000-31099', '31100-31199', '31200-31299', '31300-31399', '31400-31499', '31500-31599', '31600-31699', '31700-31799', '31800-31899', '31900-31999',
+        '32000-32099', '32100-32199', '32200-32299', '32300-32399', '32400-32499', '32500-32599', '32600-32699', '32700-32799', '32800-32899', '32900-32999',
+        '34000-34099', '34100-34199', '34200-34299', '34300-34399', '34400-34499', '34500-34599', '34600-34699', '34700-34799', '34800-34899', '34900-34999',
+        '49000-49099', '49100-49199', '49200-49299', '49300-49399', '49400-49499', '49500-49599', '49600-49699', '49700-49799', '49800-49899', '49900-49999',
+        '70000-70099', '70100-70199', '70200-70299', '70300-70399', '70400-70499', '70500-70599', '70600-70699', '70700-70799', '70800-70899', '70900-70999',
+        '80000-80099', '80100-80199', '80200-80299', '80300-80399', '80400-80499', '80500-80599', '80600-80699', '80700-80799', '80800-80899', '80900-80999',
+        '90000-90099', '90100-90199', '90200-90299', '90300-90399', '90400-90499', '90500-90599', '90600-90699', '90700-90799', '90800-90899', '90900-90999',
+        '91000-91099', '91100-91199', '91200-91299', '91300-91399', '91400-91499', '91500-91599', '91600-91699', '91700-91799', '91800-91899', '91900-91999'
       ];
       
       for (const range of ranges) {
@@ -377,6 +417,316 @@ function App() {
   // Get NPC data from database
   const getNpcFromDatabase = (npcId) => {
     return npcsDatabase.find(npc => npc.id === npcId.toString());
+  };
+
+  // Multisell functions
+  const loadMultisellFiles = async () => {
+    try {
+      // Get list of multisell files from backend
+      const listResponse = await fetch('http://localhost:3001/api/multisell/list');
+      const listData = await listResponse.json();
+      
+      if (!listData.success) {
+        console.error('Error listing multisell files:', listData.message);
+        return;
+      }
+
+      const loadedFiles = [];
+      for (const filename of listData.files) {
+        try {
+          const fileResponse = await fetch(`/xml/multisell/${filename}`);
+          if (fileResponse.ok) {
+            const xmlText = await fileResponse.text();
+            const data = parseMultisellXML(xmlText);
+            
+            // Ensure all standard config properties exist
+            const standardConfig = {
+              showall: data.config.showall || 'false',
+              notax: data.config.notax || 'false',
+              keepenchanted: data.config.keepenchanted || 'false',
+              ignoreprice: data.config.ignoreprice || 'false',
+              nokey: data.config.nokey || 'false',
+              is_chanced: data.config.is_chanced || 'false',
+              ...data.config
+            };
+            
+            loadedFiles.push({ filename, ...data, config: standardConfig });
+          }
+        } catch (e) {
+          console.error(`Error loading ${filename}:`, e);
+        }
+      }
+      
+      setMultisellFiles(loadedFiles);
+      console.log(`Loaded ${loadedFiles.length} multisell files`);
+    } catch (error) {
+      console.error('Error loading multisell files:', error);
+    }
+  };
+
+  const handleMultisellSelect = (multisell) => {
+    setSelectedMultisell(multisell);
+  };
+
+  const handleSaveMultisell = async () => {
+    if (!selectedMultisell) return;
+
+    try {
+      const xml = serializeMultisellXML(selectedMultisell);
+      
+      const response = await fetch('http://localhost:3001/api/save/multisell', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ filename: selectedMultisell.filename, content: xml }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        showSnackbar('Multisell file saved successfully', 'success');
+      } else {
+        showSnackbar(`Error: ${result.message}`, 'error');
+      }
+    } catch (error) {
+      showSnackbar(`Error saving file: ${error.message}`, 'error');
+    }
+  };
+
+  const handleAddMultisellItem = () => {
+    if (!selectedMultisell) return;
+
+    const newItem = {
+      index: selectedMultisell.items.length,
+      ingredients: [{ id: '', count: '1' }],
+      productions: [{ id: '', count: '1' }]
+    };
+
+    const updatedMultisell = {
+      ...selectedMultisell,
+      items: [...selectedMultisell.items, newItem]
+    };
+
+    const updatedFiles = multisellFiles.map(file =>
+      file.filename === selectedMultisell.filename ? updatedMultisell : file
+    );
+
+    setMultisellFiles(updatedFiles);
+    setSelectedMultisell(updatedMultisell);
+    
+    // Navigate to the page containing the new item
+    const newItemIndex = selectedMultisell.items.length;
+    const newPage = Math.floor(newItemIndex / multisellItemRowsPerPage);
+    setMultisellItemPage(newPage);
+  };
+
+  const handleDuplicateMultisellItem = (index) => {
+    if (!selectedMultisell) return;
+
+    const itemToDuplicate = selectedMultisell.items[index];
+    const duplicatedItem = {
+      index: selectedMultisell.items.length,
+      ingredients: itemToDuplicate.ingredients.map(ing => ({ ...ing })),
+      productions: itemToDuplicate.productions.map(prod => ({ ...prod }))
+    };
+
+    const updatedMultisell = {
+      ...selectedMultisell,
+      items: [...selectedMultisell.items, duplicatedItem]
+    };
+
+    const updatedFiles = multisellFiles.map(file =>
+      file.filename === selectedMultisell.filename ? updatedMultisell : file
+    );
+
+    setMultisellFiles(updatedFiles);
+    setSelectedMultisell(updatedMultisell);
+    
+    // Navigate to the first page where the new duplicated item will be (at the top)
+    setMultisellItemPage(0);
+  };
+
+  const handleRemoveMultisellItem = (index) => {
+    if (!selectedMultisell) return;
+
+    const updatedItems = selectedMultisell.items.filter((_, i) => i !== index);
+    const updatedMultisell = {
+      ...selectedMultisell,
+      items: updatedItems.map((item, i) => ({ ...item, index: i }))
+    };
+
+    const updatedFiles = multisellFiles.map(file =>
+      file.filename === selectedMultisell.filename ? updatedMultisell : file
+    );
+
+    setMultisellFiles(updatedFiles);
+    setSelectedMultisell(updatedMultisell);
+  };
+
+  const handleMultisellItemChange = (itemIndex, field, value) => {
+    if (!selectedMultisell) return;
+
+    const updatedItems = [...selectedMultisell.items];
+    updatedItems[itemIndex] = { ...updatedItems[itemIndex], [field]: value };
+
+    const updatedMultisell = { ...selectedMultisell, items: updatedItems };
+    const updatedFiles = multisellFiles.map(file =>
+      file.filename === selectedMultisell.filename ? updatedMultisell : file
+    );
+
+    setMultisellFiles(updatedFiles);
+    setSelectedMultisell(updatedMultisell);
+  };
+
+  const handleMultisellIngredientChange = (itemIndex, ingIndex, field, value) => {
+    if (!selectedMultisell) return;
+
+    const updatedItems = [...selectedMultisell.items];
+    const updatedIngredients = [...updatedItems[itemIndex].ingredients];
+    updatedIngredients[ingIndex] = { ...updatedIngredients[ingIndex], [field]: value };
+    updatedItems[itemIndex] = { ...updatedItems[itemIndex], ingredients: updatedIngredients };
+
+    const updatedMultisell = { ...selectedMultisell, items: updatedItems };
+    const updatedFiles = multisellFiles.map(file =>
+      file.filename === selectedMultisell.filename ? updatedMultisell : file
+    );
+
+    setMultisellFiles(updatedFiles);
+    setSelectedMultisell(updatedMultisell);
+  };
+
+  const handleMultisellProductionChange = (itemIndex, prodIndex, field, value) => {
+    if (!selectedMultisell) return;
+
+    const updatedItems = [...selectedMultisell.items];
+    const updatedProductions = [...updatedItems[itemIndex].productions];
+    updatedProductions[prodIndex] = { ...updatedProductions[prodIndex], [field]: value };
+    updatedItems[itemIndex] = { ...updatedItems[itemIndex], productions: updatedProductions };
+
+    const updatedMultisell = { ...selectedMultisell, items: updatedItems };
+    const updatedFiles = multisellFiles.map(file =>
+      file.filename === selectedMultisell.filename ? updatedMultisell : file
+    );
+
+    setMultisellFiles(updatedFiles);
+    setSelectedMultisell(updatedMultisell);
+  };
+
+  const handleAddIngredient = (itemIndex) => {
+    setMultisellItemSearchDialog({ open: true, type: 'ingredient', itemIndex, ingredientIndex: null });
+    setMultisellItemSearchTerm('');
+  };
+
+  const handleReplaceIngredient = (itemIndex, ingredientIndex) => {
+    setMultisellItemSearchDialog({ open: true, type: 'ingredient', itemIndex, ingredientIndex });
+    
+    // Pre-populate search with current item name
+    const currentIngredient = selectedMultisell?.items[itemIndex]?.ingredients[ingredientIndex];
+    if (currentIngredient?.id) {
+      const itemData = getItemFromDatabase(currentIngredient.id);
+      setMultisellItemSearchTerm(itemData?.name || '');
+    } else {
+      setMultisellItemSearchTerm('');
+    }
+  };
+
+  const handleAddIngredientItem = (itemId) => {
+    const { itemIndex, ingredientIndex } = multisellItemSearchDialog;
+    if (!selectedMultisell || itemIndex === null) return;
+
+    const updatedItems = [...selectedMultisell.items];
+    
+    if (ingredientIndex !== null) {
+      // Replace mode
+      const oldIngredient = updatedItems[itemIndex].ingredients[ingredientIndex];
+      updatedItems[itemIndex].ingredients[ingredientIndex] = { ...oldIngredient, id: itemId };
+    } else {
+      // Add mode
+      updatedItems[itemIndex].ingredients.push({ id: itemId, count: '1' });
+    }
+
+    const updatedMultisell = { ...selectedMultisell, items: updatedItems };
+    const updatedFiles = multisellFiles.map(file =>
+      file.filename === selectedMultisell.filename ? updatedMultisell : file
+    );
+
+    setMultisellFiles(updatedFiles);
+    setSelectedMultisell(updatedMultisell);
+    setMultisellItemSearchDialog({ open: false, type: null, itemIndex: null, ingredientIndex: null, productionIndex: null });
+  };
+
+  const handleRemoveIngredient = (itemIndex, ingIndex) => {
+    if (!selectedMultisell) return;
+
+    const updatedItems = [...selectedMultisell.items];
+    updatedItems[itemIndex].ingredients = updatedItems[itemIndex].ingredients.filter((_, i) => i !== ingIndex);
+
+    const updatedMultisell = { ...selectedMultisell, items: updatedItems };
+    const updatedFiles = multisellFiles.map(file =>
+      file.filename === selectedMultisell.filename ? updatedMultisell : file
+    );
+
+    setMultisellFiles(updatedFiles);
+    setSelectedMultisell(updatedMultisell);
+  };
+
+  const handleAddProduction = (itemIndex) => {
+    setMultisellItemSearchDialog({ open: true, type: 'production', itemIndex, productionIndex: null });
+    setMultisellItemSearchTerm('');
+  };
+
+  const handleReplaceProduction = (itemIndex, productionIndex) => {
+    setMultisellItemSearchDialog({ open: true, type: 'production', itemIndex, productionIndex });
+    
+    // Pre-populate search with current item name
+    const currentProduction = selectedMultisell?.items[itemIndex]?.productions[productionIndex];
+    if (currentProduction?.id) {
+      const itemData = getItemFromDatabase(currentProduction.id);
+      setMultisellItemSearchTerm(itemData?.name || '');
+    } else {
+      setMultisellItemSearchTerm('');
+    }
+  };
+
+  const handleAddProductionItem = (itemId) => {
+    const { itemIndex, productionIndex } = multisellItemSearchDialog;
+    if (!selectedMultisell || itemIndex === null) return;
+
+    const updatedItems = [...selectedMultisell.items];
+    
+    if (productionIndex !== null) {
+      // Replace mode
+      const oldProduction = updatedItems[itemIndex].productions[productionIndex];
+      updatedItems[itemIndex].productions[productionIndex] = { ...oldProduction, id: itemId };
+    } else {
+      // Add mode
+      updatedItems[itemIndex].productions.push({ id: itemId, count: '1' });
+    }
+
+    const updatedMultisell = { ...selectedMultisell, items: updatedItems };
+    const updatedFiles = multisellFiles.map(file =>
+      file.filename === selectedMultisell.filename ? updatedMultisell : file
+    );
+
+    setMultisellFiles(updatedFiles);
+    setSelectedMultisell(updatedMultisell);
+    setMultisellItemSearchDialog({ open: false, type: null, itemIndex: null, ingredientIndex: null, productionIndex: null });
+  };
+
+  const handleRemoveProduction = (itemIndex, prodIndex) => {
+    if (!selectedMultisell) return;
+
+    const updatedItems = [...selectedMultisell.items];
+    updatedItems[itemIndex].productions = updatedItems[itemIndex].productions.filter((_, i) => i !== prodIndex);
+
+    const updatedMultisell = { ...selectedMultisell, items: updatedItems };
+    const updatedFiles = multisellFiles.map(file =>
+      file.filename === selectedMultisell.filename ? updatedMultisell : file
+    );
+
+    setMultisellFiles(updatedFiles);
+    setSelectedMultisell(updatedMultisell);
   };
 
   const handleEditClick = (item) => {
@@ -1407,6 +1757,7 @@ function App() {
           <Tab label="Items" />
           <Tab label="Skills" />
           <Tab label="Merchant Buylists" />
+          <Tab label="Multisell" />
           <Tab label="Tools" icon={<BuildIcon />} iconPosition="start" />
         </Tabs>
       </Paper>
@@ -2414,6 +2765,431 @@ function App() {
       )}
 
       {currentTab === 3 && (
+        <>
+          <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h5">
+                Multisell Editor
+              </Typography>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<SaveIcon />}
+                onClick={handleSaveMultisell}
+                disabled={!selectedMultisell}
+              >
+                Save File
+              </Button>
+            </Box>
+
+            <Box sx={{ mb: 2 }}>
+              <Chip label={`Total Files: ${multisellFiles.length}`} color="primary" sx={{ mr: 1 }} />
+              {selectedMultisell && (
+                <Chip label={`Items: ${selectedMultisell.items.length}`} color="secondary" />
+              )}
+            </Box>
+
+            <Grid container spacing={3}>
+              {/* Left Panel - File Selection */}
+              <Grid item xs={12} md={3}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Multisell Files
+                    </Typography>
+                    
+                    <TextField
+                      fullWidth
+                      placeholder="Search files..."
+                      value={multisellSearchTerm}
+                      onChange={(e) => setMultisellSearchTerm(e.target.value)}
+                      sx={{ mb: 2 }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+
+                    <List sx={{ maxHeight: 600, overflow: 'auto' }}>
+                      {multisellFiles
+                        .filter(file => 
+                          file.filename.toLowerCase().includes(multisellSearchTerm.toLowerCase())
+                        )
+                        .map((file) => {
+                          const isSelected = selectedMultisell?.filename === file.filename;
+                          
+                          return (
+                            <ListItem
+                              key={file.filename}
+                              button
+                              selected={isSelected}
+                              onClick={() => handleMultisellSelect(file)}
+                              sx={{
+                                border: 1,
+                                borderColor: isSelected ? 'primary.main' : 'divider',
+                                borderRadius: 1,
+                                mb: 1,
+                                bgcolor: isSelected ? 'action.selected' : 'background.paper'
+                              }}
+                            >
+                              <ListItemText
+                                primary={file.filename}
+                                secondary={`${file.items.length} items`}
+                              />
+                            </ListItem>
+                          );
+                        })}
+                    </List>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Right Panel - File Editor */}
+              <Grid item xs={12} md={9}>
+                {selectedMultisell ? (
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="h6" gutterBottom>
+                          {selectedMultisell.filename}
+                        </Typography>
+                        
+                        {/* Dynamic Config Fields */}
+                        <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                          {Object.entries(selectedMultisell.config).map(([key, value]) => (
+                            <TextField
+                              key={key}
+                              label={key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                              select
+                              size="small"
+                              value={value}
+                              onChange={(e) => {
+                                const updated = {
+                                  ...selectedMultisell,
+                                  config: { ...selectedMultisell.config, [key]: e.target.value }
+                                };
+                                setSelectedMultisell(updated);
+                                setMultisellFiles(multisellFiles.map(f => 
+                                  f.filename === updated.filename ? updated : f
+                                ));
+                              }}
+                              sx={{ minWidth: 120 }}
+                            >
+                              <MenuItem value="true">true</MenuItem>
+                              <MenuItem value="false">false</MenuItem>
+                            </TextField>
+                          ))}
+                        </Box>
+
+                        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={handleAddMultisellItem}
+                          >
+                            Add Item
+                          </Button>
+                          <Typography variant="body2" color="text.secondary">
+                            Total Items: {selectedMultisell.items.length}
+                          </Typography>
+                        </Box>
+
+                        <TablePagination
+                          component="div"
+                          count={selectedMultisell.items.length}
+                          page={multisellItemPage}
+                          onPageChange={(e, newPage) => setMultisellItemPage(newPage)}
+                          rowsPerPage={multisellItemRowsPerPage}
+                          onRowsPerPageChange={(e) => {
+                            setMultisellItemRowsPerPage(parseInt(e.target.value, 10));
+                            setMultisellItemPage(0);
+                          }}
+                          rowsPerPageOptions={[10, 20, 50, 100]}
+                        />
+                      </Box>
+
+                      <Box sx={{ maxHeight: 600, overflow: 'auto' }}>
+                        {[...selectedMultisell.items]
+                          .reverse()
+                          .slice(
+                            multisellItemPage * multisellItemRowsPerPage,
+                            multisellItemPage * multisellItemRowsPerPage + multisellItemRowsPerPage
+                          )
+                          .map((item, sliceIndex) => {
+                            const itemIndex = selectedMultisell.items.length - 1 - (multisellItemPage * multisellItemRowsPerPage + sliceIndex);
+                            return (
+                          <Card key={itemIndex} sx={{ mb: 2, bgcolor: 'background.default' }}>
+                            <CardContent>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                <Typography variant="subtitle2">Item #{itemIndex + 1}</Typography>
+                                <Box>
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={() => handleDuplicateMultisellItem(itemIndex)}
+                                    title="Duplicate Item"
+                                  >
+                                    <ContentCopyIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleRemoveMultisellItem(itemIndex)}
+                                    title="Delete Item"
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              </Box>
+
+                              <Typography variant="body2" fontWeight="bold" gutterBottom>
+                                Ingredients (Cost):
+                              </Typography>
+                              {item.ingredients.map((ing, ingIndex) => {
+                                const itemData = getItemFromDatabase(ing.id);
+                                const iconPath = itemData?.icon ? getItemIconPath(itemData.icon) : null;
+                                
+                                return (
+                                  <Box key={ingIndex} sx={{ mb: 2 }}>
+                                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                      {iconPath && (
+                                        <Box
+                                          component="img"
+                                          src={`/Icon/${iconPath}.png`}
+                                          alt={itemData?.name || ''}
+                                          sx={{ width: 32, height: 32 }}
+                                          onError={(e) => { e.target.style.display = 'none'; }}
+                                        />
+                                      )}
+                                      <Box sx={{ width: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                        <Typography variant="caption" color="text.secondary">Item ID</Typography>
+                                        <Typography variant="body2">{ing.id}</Typography>
+                                      </Box>
+                                      <Box sx={{ flex: 1 }}>
+                                        <Typography variant="body2" component="span">
+                                          {itemData?.name || (ing.id ? 'Unknown Item' : '')}
+                                        </Typography>
+                                        {itemData?.add_name && (
+                                          <Typography variant="body2" component="span" sx={{ color: '#FFD700', ml: 1 }}>
+                                            ({itemData.add_name})
+                                          </Typography>
+                                        )}
+                                      </Box>
+                                      <TextField
+                                        label="Count"
+                                        value={ing.count}
+                                        onChange={(e) => handleMultisellIngredientChange(itemIndex, ingIndex, 'count', e.target.value)}
+                                        size="small"
+                                        sx={{ width: 100 }}
+                                      />
+                                      <IconButton
+                                        size="small"
+                                        color="primary"
+                                        onClick={() => handleReplaceIngredient(itemIndex, ingIndex)}
+                                        title="Replace Item"
+                                      >
+                                        <SearchIcon fontSize="small" />
+                                      </IconButton>
+                                      <IconButton
+                                        size="small"
+                                        color="error"
+                                        onClick={() => handleRemoveIngredient(itemIndex, ingIndex)}
+                                      >
+                                        <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                    </Box>
+                                    
+                                    {/* Additional attributes */}
+                                    {Object.keys(ing).filter(k => k !== 'id' && k !== 'count').length > 0 && (
+                                      <Box sx={{ ml: 5, mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                        {Object.entries(ing).filter(([k]) => k !== 'id' && k !== 'count').map(([key, value]) => (
+                                          <Chip
+                                            key={key}
+                                            label={`${key}: ${value}`}
+                                            size="small"
+                                            onDelete={() => {
+                                              const updated = { ...ing };
+                                              delete updated[key];
+                                              const updatedIngredients = [...selectedMultisell.items[itemIndex].ingredients];
+                                              updatedIngredients[ingIndex] = updated;
+                                              const updatedItems = [...selectedMultisell.items];
+                                              updatedItems[itemIndex] = { ...updatedItems[itemIndex], ingredients: updatedIngredients };
+                                              const updatedMultisell = { ...selectedMultisell, items: updatedItems };
+                                              setSelectedMultisell(updatedMultisell);
+                                              setMultisellFiles(multisellFiles.map(f => f.filename === selectedMultisell.filename ? updatedMultisell : f));
+                                            }}
+                                          />
+                                        ))}
+                                      </Box>
+                                    )}
+                                  </Box>
+                                );
+                              })}
+                              <Button
+                                size="small"
+                                startIcon={<AddIcon />}
+                                onClick={() => handleAddIngredient(itemIndex)}
+                                sx={{ mb: 2 }}
+                              >
+                                Add Ingredient
+                              </Button>
+
+                              <Typography variant="body2" fontWeight="bold" gutterBottom>
+                                Productions (Reward):
+                              </Typography>
+                              {item.productions.map((prod, prodIndex) => {
+                                const itemData = getItemFromDatabase(prod.id);
+                                const iconPath = itemData?.icon ? getItemIconPath(itemData.icon) : null;
+                                
+                                return (
+                                  <Box key={prodIndex} sx={{ mb: 2 }}>
+                                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                      {iconPath && (
+                                        <Box
+                                          component="img"
+                                          src={`/Icon/${iconPath}.png`}
+                                          alt={itemData?.name || ''}
+                                          sx={{ width: 32, height: 32 }}
+                                          onError={(e) => { e.target.style.display = 'none'; }}
+                                        />
+                                      )}
+                                      <Box sx={{ width: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                        <Typography variant="caption" color="text.secondary">Item ID</Typography>
+                                        <Typography variant="body2">{prod.id}</Typography>
+                                      </Box>
+                                      <Box sx={{ flex: 1 }}>
+                                        <Typography variant="body2" component="span">
+                                          {itemData?.name || (prod.id ? 'Unknown Item' : '')}
+                                        </Typography>
+                                        {itemData?.add_name && (
+                                          <Typography variant="body2" component="span" sx={{ color: '#FFD700', ml: 1 }}>
+                                            ({itemData.add_name})
+                                          </Typography>
+                                        )}
+                                      </Box>
+                                      <TextField
+                                        label="Count"
+                                        value={prod.count}
+                                        onChange={(e) => handleMultisellProductionChange(itemIndex, prodIndex, 'count', e.target.value)}
+                                        size="small"
+                                        sx={{ width: 100 }}
+                                      />
+                                      <IconButton
+                                        size="small"
+                                        color="primary"
+                                        onClick={() => handleReplaceProduction(itemIndex, prodIndex)}
+                                        title="Replace Item"
+                                      >
+                                        <SearchIcon fontSize="small" />
+                                      </IconButton>
+                                      <IconButton
+                                        size="small"
+                                        color="error"
+                                        onClick={() => handleRemoveProduction(itemIndex, prodIndex)}
+                                      >
+                                        <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                    </Box>
+                                    
+                                    {/* Attributes Section */}
+                                    <Box sx={{ ml: 5, mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                                      <Typography variant="caption" color="text.secondary">Attributes:</Typography>
+                                      
+                                      {/* Show existing attributes */}
+                                      {Object.entries(prod).filter(([k]) => k !== 'id' && k !== 'count').map(([key, value]) => (
+                                        <Box key={key} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                                          <TextField
+                                            label={key}
+                                            value={value}
+                                            onChange={(e) => handleMultisellProductionChange(itemIndex, prodIndex, key, e.target.value)}
+                                            size="small"
+                                            sx={{ width: 100 }}
+                                          />
+                                          <IconButton
+                                            size="small"
+                                            onClick={() => {
+                                              const updated = { ...prod };
+                                              delete updated[key];
+                                              const updatedProductions = [...selectedMultisell.items[itemIndex].productions];
+                                              updatedProductions[prodIndex] = updated;
+                                              const updatedItems = [...selectedMultisell.items];
+                                              updatedItems[itemIndex] = { ...updatedItems[itemIndex], productions: updatedProductions };
+                                              const updatedMultisell = { ...selectedMultisell, items: updatedItems };
+                                              setSelectedMultisell(updatedMultisell);
+                                              setMultisellFiles(multisellFiles.map(f => f.filename === selectedMultisell.filename ? updatedMultisell : f));
+                                            }}
+                                          >
+                                            <DeleteIcon fontSize="inherit" />
+                                          </IconButton>
+                                        </Box>
+                                      ))}
+                                      
+                                      {/* Add attribute button */}
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        onClick={() => {
+                                          const attrName = prompt('Attribute name (e.g., chance, enchant, fireAttr, waterAttr, earthAttr, windAttr, holyAttr, unholyAttr):');
+                                          if (attrName && attrName.trim()) {
+                                            const attrValue = prompt(`Value for ${attrName}:`, '0');
+                                            if (attrValue !== null) {
+                                              handleMultisellProductionChange(itemIndex, prodIndex, attrName.trim(), attrValue);
+                                            }
+                                          }
+                                        }}
+                                      >
+                                        + Add Attribute
+                                      </Button>
+                                    </Box>
+                                  </Box>
+                                );
+                              })}
+                              <Button
+                                size="small"
+                                startIcon={<AddIcon />}
+                                onClick={() => handleAddProduction(itemIndex)}
+                              >
+                                Add Production
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        );
+                          })}
+                      </Box>
+
+                      <TablePagination
+                        component="div"
+                        count={selectedMultisell.items.length}
+                        page={multisellItemPage}
+                        onPageChange={(e, newPage) => setMultisellItemPage(newPage)}
+                        rowsPerPage={multisellItemRowsPerPage}
+                        onRowsPerPageChange={(e) => {
+                          setMultisellItemRowsPerPage(parseInt(e.target.value, 10));
+                          setMultisellItemPage(0);
+                        }}
+                        rowsPerPageOptions={[10, 20, 50, 100]}
+                      />
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
+                        Select a multisell file to edit
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                )}
+              </Grid>
+            </Grid>
+          </Paper>
+        </>
+      )}
+
+      {currentTab === 4 && (
         <Paper elevation={3} sx={{ p: 3 }}>
           <Typography variant="h5" gutterBottom>
             Tools
@@ -2499,6 +3275,111 @@ function App() {
           </Grid>
         </Paper>
       )}
+
+      {/* Multisell Item Search Dialog */}
+      <Dialog
+        open={multisellItemSearchDialog.open}
+        onClose={() => setMultisellItemSearchDialog({ open: false, type: null, itemIndex: null })}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Add {multisellItemSearchDialog.type === 'ingredient' ? 'Ingredient (Cost)' : 'Production (Reward)'}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            placeholder="Search by ID or name..."
+            value={multisellItemSearchTerm}
+            onChange={(e) => setMultisellItemSearchTerm(e.target.value)}
+            sx={{ mb: 2, mt: 1 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+            autoFocus
+          />
+          
+          <List sx={{ maxHeight: 400, overflow: 'auto' }}>
+            {itemsDatabase
+              .filter(item => {
+                const searchLower = multisellItemSearchTerm.toLowerCase();
+                return multisellItemSearchTerm && (
+                  item.id?.includes(multisellItemSearchTerm) ||
+                  item.name?.toLowerCase().includes(searchLower)
+                );
+              })
+              .slice(0, 50)
+              .map((item) => {
+                const iconPath = item.icon ? getItemIconPath(item.icon) : null;
+                
+                return (
+                  <ListItem
+                    key={item.id}
+                    button
+                    onClick={() => {
+                      if (multisellItemSearchDialog.type === 'ingredient') {
+                        handleAddIngredientItem(item.id);
+                      } else {
+                        handleAddProductionItem(item.id);
+                      }
+                    }}
+                    sx={{
+                      border: 1,
+                      borderColor: 'divider',
+                      borderRadius: 1,
+                      mb: 1
+                    }}
+                  >
+                    {iconPath && (
+                      <Box
+                        component="img"
+                        src={`/Icon/${iconPath}.png`}
+                        alt={item.name}
+                        sx={{ width: 32, height: 32, mr: 2 }}
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    )}
+                    <ListItemText
+                      primary={
+                        <Box>
+                          <Typography component="span">{item.name}</Typography>
+                          {item.add_name && (
+                            <Typography component="span" sx={{ color: '#FFD700', ml: 1 }}>({item.add_name})</Typography>
+                          )}
+                          <Typography component="span" color="text.secondary"> (ID: {item.id})</Typography>
+                        </Box>
+                      }
+                      secondary={item.price ? `Price: ${parseInt(item.price).toLocaleString()} adena` : null}
+                    />
+                  </ListItem>
+                );
+              })}
+            {!multisellItemSearchTerm && (
+              <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
+                Start typing to search items
+              </Typography>
+            )}
+            {multisellItemSearchTerm && itemsDatabase.filter(item => {
+              const searchLower = multisellItemSearchTerm.toLowerCase();
+              return item.id?.includes(multisellItemSearchTerm) ||
+                item.name?.toLowerCase().includes(searchLower);
+            }).length === 0 && (
+              <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
+                No items found
+              </Typography>
+            )}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMultisellItemSearchDialog({ open: false, type: null, itemIndex: null })}>
+            Cancel
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Duplicate Item Confirmation Dialog */}
       <Dialog
