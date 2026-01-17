@@ -390,6 +390,7 @@ export function parseItemsXML(xmlText) {
       name: node.getAttribute('name'),
       type: 'weapon',
       itemType: null,
+      slot: null,
       icon: null,
       price: null
     };
@@ -402,6 +403,17 @@ export function parseItemsXML(xmlText) {
       if (name === 'price') item.price = value;
       if (name === 'type') item.itemType = value;
     });
+    
+    // Extract slot information
+    const slotNodes = node.querySelectorAll('equip > slot');
+    if (slotNodes.length > 0) {
+      const slots = [];
+      slotNodes.forEach((slotNode) => {
+        const slotId = slotNode.getAttribute('id');
+        if (slotId) slots.push(slotId);
+      });
+      item.slot = slots.join(',');
+    }
     
     items.push(item);
   });
@@ -414,6 +426,7 @@ export function parseItemsXML(xmlText) {
       name: node.getAttribute('name'),
       type: 'armor',
       itemType: null,
+      slot: null,
       icon: null,
       price: null
     };
@@ -426,6 +439,17 @@ export function parseItemsXML(xmlText) {
       if (name === 'price') item.price = value;
       if (name === 'type') item.itemType = value;
     });
+    
+    // Extract slot information
+    const slotNodes = node.querySelectorAll('equip > slot');
+    if (slotNodes.length > 0) {
+      const slots = [];
+      slotNodes.forEach((slotNode) => {
+        const slotId = slotNode.getAttribute('id');
+        if (slotId) slots.push(slotId);
+      });
+      item.slot = slots.join(',');
+    }
     
     items.push(item);
   });
@@ -438,6 +462,7 @@ export function parseItemsXML(xmlText) {
       name: node.getAttribute('name'),
       type: 'etcitem',
       itemType: null,
+      slot: null,
       icon: null,
       price: null
     };
@@ -450,6 +475,17 @@ export function parseItemsXML(xmlText) {
       if (name === 'price') item.price = value;
       if (name === 'type') item.itemType = value;
     });
+    
+    // Extract slot information
+    const slotNodes = node.querySelectorAll('equip > slot');
+    if (slotNodes.length > 0) {
+      const slots = [];
+      slotNodes.forEach((slotNode) => {
+        const slotId = slotNode.getAttribute('id');
+        if (slotId) slots.push(slotId);
+      });
+      item.slot = slots.join(',');
+    }
     
     items.push(item);
   });

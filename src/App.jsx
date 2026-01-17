@@ -1255,21 +1255,54 @@ function App() {
   const handleSortTradelistItems = () => {
     if (!selectedTradelist) return;
 
-    // Sort items by specific itemType (SWORD, BLUNT, etc) first, then by price ascending
+    // Sort items by slot first, then by price ascending
     const sortedItems = [...selectedTradelist.items].sort((a, b) => {
       const itemDataA = getItemFromDatabase(a.id);
       const itemDataB = getItemFromDatabase(b.id);
 
-      // Get specific item types (SWORD, BLUNT, BOW, HEAVY, LIGHT, etc.) - default to 'zzz' to sort unknowns last
-      const itemTypeA = itemDataA?.itemType || 'zzz-unknown';
-      const itemTypeB = itemDataB?.itemType || 'zzz-unknown';
-
-      // First, compare by itemType (this groups SWORD together, BLUNT together, etc.)
-      if (itemTypeA !== itemTypeB) {
-        return itemTypeA.localeCompare(itemTypeB);
+      // First, compare by slot (HEAD, CHEST, LEGS, GLOVES, FEET, etc.)
+      const slotA = itemDataA?.slot || 'zzz-unknown';
+      const slotB = itemDataB?.slot || 'zzz-unknown';
+      
+      // Define slot order for better organization
+      const slotOrder = {
+        'HEAD': 1,
+        'CHEST': 2,
+        'FULL_ARMOR': 3,
+        'LEGS': 4,
+        'GLOVES': 5,
+        'FEET': 6,
+        'NECK': 7,
+        'L_EAR': 8,
+        'R_EAR': 9,
+        'L_FINGER': 10,
+        'R_FINGER': 11,
+        'L_HAND': 12,
+        'R_HAND': 13,
+        'RIGHT_HAND': 14,
+        'LEFT_HAND': 15,
+        'TWO_HAND': 16,
+        'HAIR': 17,
+        'HAIR2': 18,
+        'HAIRALL': 19,
+        'UNDERWEAR': 20,
+        'BACK': 21,
+        'BELT': 22
+      };
+      
+      const orderA = slotOrder[slotA] || 999;
+      const orderB = slotOrder[slotB] || 999;
+      
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      
+      // If slot not in order map, sort alphabetically
+      if (slotA !== slotB) {
+        return slotA.localeCompare(slotB);
       }
 
-      // If same itemType, compare by price ascending
+      // Second, compare by price ascending (same slot)
       const priceA = itemDataA?.price ? parseInt(itemDataA.price) : 0;
       const priceB = itemDataB?.price ? parseInt(itemDataB.price) : 0;
 
@@ -1285,7 +1318,7 @@ function App() {
 
     setMerchantBuylists(updatedBuylists);
     setSelectedTradelist(updatedTradelist);
-    showSnackbar('Items sorted by type and price', 'success');
+    showSnackbar('Items sorted by slot and price', 'success');
   };
 
   const handleSaveBuylists = async () => {
