@@ -121,6 +121,7 @@ function App() {
   const [itemSearchTerm, setItemSearchTerm] = useState('');
   const [draggedItemIndex, setDraggedItemIndex] = useState(null);
   const [duplicateItemDialog, setDuplicateItemDialog] = useState({ open: false, item: null });
+  const [copiedTradelistItems, setCopiedTradelistItems] = useState(null);
 
   // Load data from files
   useEffect(() => {
@@ -1252,6 +1253,26 @@ function App() {
     setSelectedTradelist(updatedTradelist);
   };
 
+  const handleCopyTradelistItems = (tradelist) => {
+    setCopiedTradelistItems([...tradelist.items]);
+    showSnackbar(`Copied ${tradelist.items.length} items from tradelist`, 'success');
+  };
+
+  const handlePasteTradelistItems = () => {
+    if (!selectedTradelist || !copiedTradelistItems) return;
+
+    const updatedTradelist = { ...selectedTradelist, items: [...copiedTradelistItems] };
+    const updatedBuylists = merchantBuylists.map(tl =>
+      tl.shop === selectedTradelist.shop && tl.npc === selectedTradelist.npc
+        ? updatedTradelist
+        : tl
+    );
+
+    setMerchantBuylists(updatedBuylists);
+    setSelectedTradelist(updatedTradelist);
+    showSnackbar(`Pasted ${copiedTradelistItems.length} items, replacing all existing items`, 'success');
+  };
+
   const handleSortTradelistItems = () => {
     if (!selectedTradelist) return;
 
@@ -1346,11 +1367,18 @@ function App() {
     }
   };
 
-  const filteredTradelists = merchantBuylists.filter(tl =>
-    tl.npc.includes(tradelistSearchTerm) ||
-    tl.shop.includes(tradelistSearchTerm) ||
-    tl.items.some(item => item.name?.toLowerCase().includes(tradelistSearchTerm.toLowerCase()))
-  );
+  const filteredTradelists = merchantBuylists.filter(tl => {
+    const searchLower = tradelistSearchTerm.toLowerCase();
+    const npcData = getNpcFromDatabase(tl.npc);
+    const npcName = npcData?.name?.toLowerCase() || '';
+    const npcTitle = npcData?.title?.toLowerCase() || '';
+    
+    return tl.npc.includes(tradelistSearchTerm) ||
+      tl.shop.includes(tradelistSearchTerm) ||
+      npcName.includes(searchLower) ||
+      npcTitle.includes(searchLower) ||
+      tl.items.some(item => item.name?.toLowerCase().includes(searchLower));
+  });
 
   const filteredItemsForAdd = itemsDatabase.filter(item =>
     item.name?.toLowerCase().includes(itemSearchTerm.toLowerCase()) ||
@@ -2108,41 +2136,63 @@ function App() {
                         return (
                           <ListItem
                             key={`${tradelist.npc}-${tradelist.shop}`}
-                            button
-                            selected={isSelected}
-                            onClick={() => handleTradelistSelect(tradelist)}
                             sx={{
                               border: 1,
                               borderColor: isSelected ? 'primary.main' : 'divider',
                               borderRadius: 1,
                               mb: 1,
-                              bgcolor: isSelected ? 'action.selected' : 'background.paper'
+                              bgcolor: isSelected ? 'action.selected' : 'background.paper',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'stretch'
                             }}
                           >
-                            <ListItemText
-                              primary={
-                                <Box>
-                                  <Typography variant="body2" component="span" fontWeight="bold">
-                                    {npcData ? npcData.name : `NPC ${tradelist.npc}`}
-                                  </Typography>
-                                  {npcData?.title && (
-                                    <Typography variant="caption" component="span" color="text.secondary" sx={{ ml: 1 }}>
-                                      ({npcData.title})
+                            <Box
+                              onClick={() => handleTradelistSelect(tradelist)}
+                              sx={{
+                                cursor: 'pointer',
+                                flex: 1,
+                                '&:hover': { opacity: 0.8 }
+                              }}
+                            >
+                              <ListItemText
+                                primary={
+                                  <Box>
+                                    <Typography variant="body2" component="span" fontWeight="bold">
+                                      {npcData ? npcData.name : `NPC ${tradelist.npc}`}
                                     </Typography>
-                                  )}
-                                </Box>
-                              }
-                              secondary={
-                                <Box>
-                                  <Typography variant="caption" display="block">
-                                    NPC ID: {tradelist.npc} | Shop: {tradelist.shop} | Markup: {tradelist.markup}%
-                                  </Typography>
-                                  <Typography variant="caption" color="primary">
-                                    {tradelist.items.length} items
-                                  </Typography>
-                                </Box>
-                              }
-                            />
+                                    {npcData?.title && (
+                                      <Typography variant="caption" component="span" color="text.secondary" sx={{ ml: 1 }}>
+                                        ({npcData.title})
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                }
+                                secondary={
+                                  <Box>
+                                    <Typography variant="caption" display="block">
+                                      NPC ID: {tradelist.npc} | Shop: {tradelist.shop} | Markup: {tradelist.markup}%
+                                    </Typography>
+                                    <Typography variant="caption" color="primary">
+                                      {tradelist.items.length} items
+                                    </Typography>
+                                  </Box>
+                                }
+                              />
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<ContentCopyIcon />}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCopyTradelistItems(tradelist);
+                                }}
+                              >
+                                Copy Items
+                              </Button>
+                            </Box>
                           </ListItem>
                         );
                       })}
@@ -2169,14 +2219,27 @@ function App() {
                             NPC ID: {selectedTradelist.npc} | Shop: {selectedTradelist.shop} | Markup: {selectedTradelist.markup}%
                           </Typography>
                         </Box>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<SortIcon />}
-                          onClick={handleSortTradelistItems}
-                        >
-                          Sort
-                        </Button>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          {copiedTradelistItems && (
+                            <Button
+                              variant="contained"
+                              size="small"
+                              color="secondary"
+                              startIcon={<ContentCopyIcon />}
+                              onClick={handlePasteTradelistItems}
+                            >
+                              Paste ({copiedTradelistItems.length})
+                            </Button>
+                          )}
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<SortIcon />}
+                            onClick={handleSortTradelistItems}
+                          >
+                            Sort
+                          </Button>
+                        </Box>
                       </Box>
 
                       <List sx={{ maxHeight: 600, overflow: 'auto' }}>
