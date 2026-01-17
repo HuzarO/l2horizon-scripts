@@ -320,3 +320,195 @@ export function extractSkillIconPath(iconData) {
   
   return null;
 }
+
+/**
+ * Parse merchant_buylists.xml file
+ */
+export function parseMerchantBuylistsXML(xmlText) {
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+  
+  const tradelists = [];
+  const tradelistNodes = xmlDoc.querySelectorAll('tradelist');
+  
+  tradelistNodes.forEach((tradelistNode) => {
+    const tradelist = {
+      npc: tradelistNode.getAttribute('npc'),
+      shop: tradelistNode.getAttribute('shop'),
+      markup: tradelistNode.getAttribute('markup'),
+      items: []
+    };
+    
+    const itemNodes = tradelistNode.querySelectorAll('item');
+    itemNodes.forEach((itemNode) => {
+      tradelist.items.push({
+        id: itemNode.getAttribute('id'),
+        name: itemNode.getAttribute('name')
+      });
+    });
+    
+    tradelists.push(tradelist);
+  });
+  
+  return tradelists;
+}
+
+/**
+ * Serialize merchant buylists back to XML format
+ */
+export function serializeMerchantBuylistsXML(tradelists) {
+  let xml = "<?xml version='1.0' encoding='utf-8'?>\n<list>\n";
+  
+  tradelists.forEach((tradelist) => {
+    xml += `\n    <tradelist npc="${tradelist.npc}" shop="${tradelist.shop}" markup="${tradelist.markup}" >\n`;
+    
+    tradelist.items.forEach((item) => {
+      xml += `        <item id="${item.id}" name="${item.name}" />\n`;
+    });
+    
+    xml += '    </tradelist>\n';
+  });
+  
+  xml += '\n</list>\n';
+  return xml;
+}
+
+/**
+ * Parse items XML files (from xml/items folder)
+ */
+export function parseItemsXML(xmlText) {
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+  
+  const items = [];
+  
+  // Parse weapons
+  const weaponNodes = xmlDoc.querySelectorAll('weapon');
+  weaponNodes.forEach((node) => {
+    const item = {
+      id: node.getAttribute('id'),
+      name: node.getAttribute('name'),
+      type: 'weapon',
+      itemType: null,
+      icon: null,
+      price: null
+    };
+    
+    const setNodes = node.querySelectorAll('set');
+    setNodes.forEach((setNode) => {
+      const name = setNode.getAttribute('name');
+      const value = setNode.getAttribute('value');
+      if (name === 'icon') item.icon = value;
+      if (name === 'price') item.price = value;
+      if (name === 'type') item.itemType = value;
+    });
+    
+    items.push(item);
+  });
+  
+  // Parse armor
+  const armorNodes = xmlDoc.querySelectorAll('armor');
+  armorNodes.forEach((node) => {
+    const item = {
+      id: node.getAttribute('id'),
+      name: node.getAttribute('name'),
+      type: 'armor',
+      itemType: null,
+      icon: null,
+      price: null
+    };
+    
+    const setNodes = node.querySelectorAll('set');
+    setNodes.forEach((setNode) => {
+      const name = setNode.getAttribute('name');
+      const value = setNode.getAttribute('value');
+      if (name === 'icon') item.icon = value;
+      if (name === 'price') item.price = value;
+      if (name === 'type') item.itemType = value;
+    });
+    
+    items.push(item);
+  });
+  
+  // Parse etcitems
+  const etcNodes = xmlDoc.querySelectorAll('etcitem');
+  etcNodes.forEach((node) => {
+    const item = {
+      id: node.getAttribute('id'),
+      name: node.getAttribute('name'),
+      type: 'etcitem',
+      itemType: null,
+      icon: null,
+      price: null
+    };
+    
+    const setNodes = node.querySelectorAll('set');
+    setNodes.forEach((setNode) => {
+      const name = setNode.getAttribute('name');
+      const value = setNode.getAttribute('value');
+      if (name === 'icon') item.icon = value;
+      if (name === 'price') item.price = value;
+      if (name === 'type') item.itemType = value;
+    });
+    
+    items.push(item);
+  });
+  
+  return items;
+}
+
+/**
+ * Get icon path from XML item data
+ */
+export function getItemIconPath(iconValue) {
+  if (!iconValue) return null;
+  
+  const iconPath = iconValue.replace('icon.', '');
+  
+  // Determine subfolder based on icon prefix
+  let subfolder = '';
+  if (iconPath.startsWith('weapon_')) {
+    subfolder = 'weapon_i/';
+  } else if (iconPath.startsWith('armor_')) {
+    // Check specific armor types
+    if (iconPath.includes('_h_')) subfolder = 'helmet_i/';
+    else if (iconPath.includes('_u_')) subfolder = 'upbody_i/';
+    else if (iconPath.includes('_l_')) subfolder = 'lowbody_i/';
+    else if (iconPath.includes('_g_')) subfolder = 'glove_i/';
+    else if (iconPath.includes('_b_')) subfolder = 'boots_i/';
+    else subfolder = 'onepiece/';
+  } else if (iconPath.startsWith('shield_')) {
+    subfolder = 'shield_i/';
+  } else if (iconPath.startsWith('accessory_') || iconPath.startsWith('accessary_')) {
+    subfolder = 'accessary_i/';
+  } else if (iconPath.startsWith('etc_')) {
+    subfolder = 'etc_i/';
+  } else {
+    subfolder = 'etc_i/';
+  }
+  
+  return subfolder + iconPath;
+}
+
+/**
+ * Parse NPCs XML files (from xml/npc folder)
+ */
+export function parseNpcsXML(xmlText) {
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+  
+  const npcs = [];
+  
+  const npcNodes = xmlDoc.querySelectorAll('npc');
+  npcNodes.forEach((node) => {
+    const npc = {
+      id: node.getAttribute('id'),
+      name: node.getAttribute('name'),
+      title: node.getAttribute('title')
+    };
+    
+    npcs.push(npc);
+  });
+  
+  return npcs;
+}

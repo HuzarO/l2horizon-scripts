@@ -45,8 +45,11 @@ import {
   Build as BuildIcon,
   PlayArrow as PlayArrowIcon,
   Delete as DeleteIcon,
+  Add as AddIcon,
+  DragIndicator as DragIndicatorIcon,
+  Sort as SortIcon,
 } from '@mui/icons-material';
-import { parseItemNameFile, parseItemGroupFile, serializeItemNameFile, serializeItemGroupFile, extractIconPath, parseSkillNameFile, parseSkillGrpFile, serializeSkillNameFile, serializeSkillGrpFile, extractSkillIconPath } from './utils/fileParser';
+import { parseItemNameFile, parseItemGroupFile, serializeItemNameFile, serializeItemGroupFile, extractIconPath, parseSkillNameFile, parseSkillGrpFile, serializeSkillNameFile, serializeSkillGrpFile, extractSkillIconPath, parseMerchantBuylistsXML, serializeMerchantBuylistsXML, parseItemsXML, getItemIconPath, parseNpcsXML } from './utils/fileParser';
 
 // Helper to strip brackets for display
 const stripBrackets = (value) => {
@@ -108,6 +111,16 @@ function App() {
   const [editSkillDialogOpen, setEditSkillDialogOpen] = useState(false);
   const [editingSkillCell, setEditingSkillCell] = useState(null); // { skillId, skillLevel, skillSublevel, field }
   const [editingSkillValue, setEditingSkillValue] = useState('');
+
+  // Merchant Buylists state
+  const [merchantBuylists, setMerchantBuylists] = useState([]);
+  const [itemsDatabase, setItemsDatabase] = useState([]); // All items from xml/items/*.xml
+  const [npcsDatabase, setNpcsDatabase] = useState([]); // All NPCs from xml/npc/*.xml
+  const [selectedTradelist, setSelectedTradelist] = useState(null);
+  const [tradelistSearchTerm, setTradelistSearchTerm] = useState('');
+  const [itemSearchTerm, setItemSearchTerm] = useState('');
+  const [draggedItemIndex, setDraggedItemIndex] = useState(null);
+  const [duplicateItemDialog, setDuplicateItemDialog] = useState({ open: false, item: null });
 
   // Load data from files
   useEffect(() => {
@@ -244,6 +257,22 @@ function App() {
         console.log('Skills files not found or error loading:', skillError);
       }
 
+      // Load Merchant Buylists
+      try {
+        const buylistResponse = await fetch('/xml/merchant_buylists.xml');
+        const buylistText = await buylistResponse.text();
+        const parsedBuylists = parseMerchantBuylistsXML(buylistText);
+        setMerchantBuylists(parsedBuylists);
+        
+        // Load all items from xml/items folder
+        await loadItemsDatabase();
+        
+        // Load all NPCs from xml/npc folder
+        await loadNpcsDatabase();
+      } catch (buylistError) {
+        console.log('Merchant buylists not found or error loading:', buylistError);
+      }
+
       showSnackbar('Files loaded successfully', 'success');
     } catch (error) {
       console.error('Error loading files:', error);
@@ -258,6 +287,95 @@ function App() {
       armorData.find(a => a.object_id === id) ||
       etcData.find(e => e.object_id === id)
     );
+  };
+
+  // Load items database from xml/items/*.xml files
+  const loadItemsDatabase = async () => {
+    try {
+      const allItems = [];
+      
+      // Determine file ranges - load a reasonable subset
+      const ranges = [
+        '0-99', '100-199', '200-299', '300-399', '400-499', '500-599', '600-699', '700-799', '800-899', '900-999',
+        '1000-1099', '1100-1199', '1200-1299', '1300-1399', '1400-1499', '1500-1599', '1600-1699', '1700-1799', '1800-1899', '1900-1999',
+        '2000-2099', '2100-2199', '2200-2299', '2300-2399', '2400-2499', '2500-2599', '2600-2699', '2700-2799', '2800-2899', '2900-2999',
+        '3000-3099', '3100-3199', '3200-3299', '3300-3399', '3400-3499', '3500-3599', '3600-3699', '3700-3799', '3800-3899', '3900-3999',
+        '4000-4099', '4100-4199', '4200-4299', '4300-4399', '4400-4499', '4500-4599', '4600-4699', '4700-4799', '4800-4899', '4900-4999',
+        '5000-5099', '5100-5199', '5200-5299', '5300-5399', '5400-5499', '5500-5599', '5600-5699', '5700-5799', '5800-5899', '5900-5999',
+        '6000-6099', '6100-6199', '6200-6299', '6300-6399', '6400-6499', '6500-6599', '6600-6699', '6700-6799', '6800-6899', '6900-6999',
+        '7000-7099', '7100-7199', '7200-7299', '7300-7399', '7400-7499', '7500-7599', '7600-7699', '7700-7799', '7800-7899', '7900-7999',
+        '8000-8099', '8100-8199', '8200-8299', '8300-8399', '8400-8499', '8500-8599', '8600-8699', '8700-8799', '8800-8899', '8900-8999',
+        '9000-9099', '9100-9199', '9200-9299'
+      ];
+      
+      for (const range of ranges) {
+        try {
+          const response = await fetch(`/xml/items/${range}.xml`);
+          if (response.ok) {
+            const xmlText = await response.text();
+            const items = parseItemsXML(xmlText);
+            allItems.push(...items);
+          }
+        } catch (e) {
+          // File doesn't exist, skip
+        }
+      }
+      
+      setItemsDatabase(allItems);
+      console.log(`Loaded ${allItems.length} items from XML database`);
+    } catch (error) {
+      console.error('Error loading items database:', error);
+    }
+  };
+
+  // Get item data from database
+  const getItemFromDatabase = (itemId) => {
+    return itemsDatabase.find(item => item.id === itemId.toString());
+  };
+
+  // Load NPCs database from xml/npc/*.xml files
+  const loadNpcsDatabase = async () => {
+    try {
+      const allNpcs = [];
+      
+      // Load NPC files - based on the merchant_buylists.xml, most NPCs are in 30000-32000 range
+      const ranges = [
+        '100-199',
+        '8600-8699',
+        '12000-12099', '12300-12399', '12500-12599', '12600-12699', '12700-12799',
+        '13000-13099', '13100-13199',
+        '30000-30099', '30100-30199', '30200-30299', '30300-30399', '30400-30499',
+        '30500-30599', '30600-30699', '30700-30799', '30800-30899', '30900-30999',
+        '31000-31099', '31100-31199', '31200-31299', '31300-31399', '31400-31499',
+        '31500-31599', '31600-31699', '31700-31799', '31800-31899', '31900-31999',
+        '32000-32099', '32100-32199', '32200-32299',
+        '35000-35099', '35100-35199', '35200-35299', '35300-35399', '35400-35499',
+        '35500-35599', '35600-35699'
+      ];
+      
+      for (const range of ranges) {
+        try {
+          const response = await fetch(`/xml/npc/${range}.xml`);
+          if (response.ok) {
+            const xmlText = await response.text();
+            const npcs = parseNpcsXML(xmlText);
+            allNpcs.push(...npcs);
+          }
+        } catch (e) {
+          // File doesn't exist, skip
+        }
+      }
+      
+      setNpcsDatabase(allNpcs);
+      console.log(`Loaded ${allNpcs.length} NPCs from XML database`);
+    } catch (error) {
+      console.error('Error loading NPCs database:', error);
+    }
+  };
+
+  // Get NPC data from database
+  const getNpcFromDatabase = (npcId) => {
+    return npcsDatabase.find(npc => npc.id === npcId.toString());
   };
 
   const handleEditClick = (item) => {
@@ -1002,6 +1120,210 @@ function App() {
     );
   };
 
+  // Merchant Buylist Handlers
+  const handleTradelistSelect = (tradelist) => {
+    setSelectedTradelist(tradelist);
+    setItemSearchTerm('');
+  };
+
+  const handleAddItemToTradelist = (item) => {
+    if (!selectedTradelist) {
+      showSnackbar('Please select a tradelist first', 'warning');
+      return;
+    }
+
+    // Check if item already exists
+    const exists = selectedTradelist.items.some(i => i.id === item.id);
+    if (exists) {
+      // Show confirmation dialog
+      setDuplicateItemDialog({ open: true, item });
+      return;
+    }
+
+    // Add item directly if no duplicate
+    addItemToTradelistDirect(item);
+  };
+
+  const addItemToTradelistDirect = (item) => {
+    const updatedTradelist = {
+      ...selectedTradelist,
+      items: [...selectedTradelist.items, { id: item.id, name: item.name }]
+    };
+
+    const updatedBuylists = merchantBuylists.map(tl =>
+      tl.shop === selectedTradelist.shop && tl.npc === selectedTradelist.npc
+        ? updatedTradelist
+        : tl
+    );
+
+    setMerchantBuylists(updatedBuylists);
+    setSelectedTradelist(updatedTradelist);
+    showSnackbar(`Added ${item.name} to tradelist`, 'success');
+  };
+
+  const handleConfirmDuplicateItem = () => {
+    if (duplicateItemDialog.item) {
+      addItemToTradelistDirect(duplicateItemDialog.item);
+    }
+    setDuplicateItemDialog({ open: false, item: null });
+  };
+
+  const handleCancelDuplicateItem = () => {
+    setDuplicateItemDialog({ open: false, item: null });
+  };
+
+  const handleRemoveItemFromTradelist = (itemIndex) => {
+    if (!selectedTradelist) return;
+
+    const updatedTradelist = {
+      ...selectedTradelist,
+      items: selectedTradelist.items.filter((_, idx) => idx !== itemIndex)
+    };
+
+    const updatedBuylists = merchantBuylists.map(tl =>
+      tl.shop === selectedTradelist.shop && tl.npc === selectedTradelist.npc
+        ? updatedTradelist
+        : tl
+    );
+
+    setMerchantBuylists(updatedBuylists);
+    setSelectedTradelist(updatedTradelist);
+    showSnackbar('Item removed', 'success');
+  };
+
+  const handleDragStart = (index) => {
+    setDraggedItemIndex(index);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedItemIndex === null || draggedItemIndex === index) return;
+
+    const items = [...selectedTradelist.items];
+    const draggedItem = items[draggedItemIndex];
+    items.splice(draggedItemIndex, 1);
+    items.splice(index, 0, draggedItem);
+
+    const updatedTradelist = { ...selectedTradelist, items };
+    const updatedBuylists = merchantBuylists.map(tl =>
+      tl.shop === selectedTradelist.shop && tl.npc === selectedTradelist.npc
+        ? updatedTradelist
+        : tl
+    );
+
+    setMerchantBuylists(updatedBuylists);
+    setSelectedTradelist(updatedTradelist);
+    setDraggedItemIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItemIndex(null);
+  };
+
+  const handleMoveItemUp = (index) => {
+    if (index === 0) return;
+    const items = [...selectedTradelist.items];
+    [items[index - 1], items[index]] = [items[index], items[index - 1]];
+
+    const updatedTradelist = { ...selectedTradelist, items };
+    const updatedBuylists = merchantBuylists.map(tl =>
+      tl.shop === selectedTradelist.shop && tl.npc === selectedTradelist.npc
+        ? updatedTradelist
+        : tl
+    );
+
+    setMerchantBuylists(updatedBuylists);
+    setSelectedTradelist(updatedTradelist);
+  };
+
+  const handleMoveItemDown = (index) => {
+    if (index === selectedTradelist.items.length - 1) return;
+    const items = [...selectedTradelist.items];
+    [items[index], items[index + 1]] = [items[index + 1], items[index]];
+
+    const updatedTradelist = { ...selectedTradelist, items };
+    const updatedBuylists = merchantBuylists.map(tl =>
+      tl.shop === selectedTradelist.shop && tl.npc === selectedTradelist.npc
+        ? updatedTradelist
+        : tl
+    );
+
+    setMerchantBuylists(updatedBuylists);
+    setSelectedTradelist(updatedTradelist);
+  };
+
+  const handleSortTradelistItems = () => {
+    if (!selectedTradelist) return;
+
+    // Sort items by specific itemType (SWORD, BLUNT, etc) first, then by price ascending
+    const sortedItems = [...selectedTradelist.items].sort((a, b) => {
+      const itemDataA = getItemFromDatabase(a.id);
+      const itemDataB = getItemFromDatabase(b.id);
+
+      // Get specific item types (SWORD, BLUNT, BOW, HEAVY, LIGHT, etc.) - default to 'zzz' to sort unknowns last
+      const itemTypeA = itemDataA?.itemType || 'zzz-unknown';
+      const itemTypeB = itemDataB?.itemType || 'zzz-unknown';
+
+      // First, compare by itemType (this groups SWORD together, BLUNT together, etc.)
+      if (itemTypeA !== itemTypeB) {
+        return itemTypeA.localeCompare(itemTypeB);
+      }
+
+      // If same itemType, compare by price ascending
+      const priceA = itemDataA?.price ? parseInt(itemDataA.price) : 0;
+      const priceB = itemDataB?.price ? parseInt(itemDataB.price) : 0;
+
+      return priceA - priceB;
+    });
+
+    const updatedTradelist = { ...selectedTradelist, items: sortedItems };
+    const updatedBuylists = merchantBuylists.map(tl =>
+      tl.shop === selectedTradelist.shop && tl.npc === selectedTradelist.npc
+        ? updatedTradelist
+        : tl
+    );
+
+    setMerchantBuylists(updatedBuylists);
+    setSelectedTradelist(updatedTradelist);
+    showSnackbar('Items sorted by type and price', 'success');
+  };
+
+  const handleSaveBuylists = async () => {
+    try {
+      const xml = serializeMerchantBuylistsXML(merchantBuylists);
+      
+      const response = await fetch('http://localhost:3001/api/save/merchant-buylists', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: xml }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        showSnackbar('Merchant buylists saved successfully to xml/merchant_buylists.xml', 'success');
+      } else {
+        showSnackbar('Error saving merchant buylists: ' + data.message, 'error');
+      }
+    } catch (error) {
+      console.error('Error saving buylists:', error);
+      showSnackbar('Error saving merchant buylists: ' + error.message, 'error');
+    }
+  };
+
+  const filteredTradelists = merchantBuylists.filter(tl =>
+    tl.npc.includes(tradelistSearchTerm) ||
+    tl.shop.includes(tradelistSearchTerm) ||
+    tl.items.some(item => item.name?.toLowerCase().includes(tradelistSearchTerm.toLowerCase()))
+  );
+
+  const filteredItemsForAdd = itemsDatabase.filter(item =>
+    item.name?.toLowerCase().includes(itemSearchTerm.toLowerCase()) ||
+    item.id?.includes(itemSearchTerm)
+  ).slice(0, 50); // Limit to 50 results for performance
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
@@ -1023,6 +1345,7 @@ function App() {
         <Tabs value={currentTab} onChange={(e, val) => setCurrentTab(val)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tab label="Items" />
           <Tab label="Skills" />
+          <Tab label="Merchant Buylists" />
           <Tab label="Tools" icon={<BuildIcon />} iconPosition="start" />
         </Tabs>
       </Paper>
@@ -1697,6 +2020,304 @@ function App() {
       )}
 
       {currentTab === 2 && (
+        <>
+          <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h5">
+                Merchant Buylists Editor
+              </Typography>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<SaveIcon />}
+                onClick={handleSaveBuylists}
+                disabled={merchantBuylists.length === 0}
+              >
+                Save merchant_buylists.xml
+              </Button>
+            </Box>
+
+            <Box sx={{ mb: 2 }}>
+              <Chip label={`Total Tradelists: ${merchantBuylists.length}`} color="primary" sx={{ mr: 1 }} />
+              <Chip label={`Items Database: ${itemsDatabase.length}`} color="secondary" sx={{ mr: 1 }} />
+              <Chip label={`NPCs Database: ${npcsDatabase.length}`} color="info" />
+            </Box>
+
+            <Grid container spacing={3}>
+              {/* Left Panel - Tradelist Selection */}
+              <Grid item xs={12} md={4}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Tradelists
+                    </Typography>
+                    
+                    <TextField
+                      fullWidth
+                      placeholder="Search tradelists..."
+                      value={tradelistSearchTerm}
+                      onChange={(e) => setTradelistSearchTerm(e.target.value)}
+                      sx={{ mb: 2 }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+
+                    <List sx={{ maxHeight: 600, overflow: 'auto' }}>
+                      {filteredTradelists.map((tradelist) => {
+                        const npcData = getNpcFromDatabase(tradelist.npc);
+                        const isSelected = selectedTradelist?.shop === tradelist.shop && selectedTradelist?.npc === tradelist.npc;
+                        
+                        return (
+                          <ListItem
+                            key={`${tradelist.npc}-${tradelist.shop}`}
+                            button
+                            selected={isSelected}
+                            onClick={() => handleTradelistSelect(tradelist)}
+                            sx={{
+                              border: 1,
+                              borderColor: isSelected ? 'primary.main' : 'divider',
+                              borderRadius: 1,
+                              mb: 1,
+                              bgcolor: isSelected ? 'action.selected' : 'background.paper'
+                            }}
+                          >
+                            <ListItemText
+                              primary={
+                                <Box>
+                                  <Typography variant="body2" component="span" fontWeight="bold">
+                                    {npcData ? npcData.name : `NPC ${tradelist.npc}`}
+                                  </Typography>
+                                  {npcData?.title && (
+                                    <Typography variant="caption" component="span" color="text.secondary" sx={{ ml: 1 }}>
+                                      ({npcData.title})
+                                    </Typography>
+                                  )}
+                                </Box>
+                              }
+                              secondary={
+                                <Box>
+                                  <Typography variant="caption" display="block">
+                                    NPC ID: {tradelist.npc} | Shop: {tradelist.shop} | Markup: {tradelist.markup}%
+                                  </Typography>
+                                  <Typography variant="caption" color="primary">
+                                    {tradelist.items.length} items
+                                  </Typography>
+                                </Box>
+                              }
+                            />
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Middle Panel - Tradelist Items */}
+              <Grid item xs={12} md={4}>
+                {selectedTradelist ? (
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                        <Box>
+                          <Typography variant="h6" gutterBottom>
+                            Items ({selectedTradelist.items.length})
+                            {(() => {
+                              const npcData = getNpcFromDatabase(selectedTradelist.npc);
+                              return npcData ? ` - ${npcData.name}` : ` - NPC ${selectedTradelist.npc}`;
+                            })()}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            NPC ID: {selectedTradelist.npc} | Shop: {selectedTradelist.shop} | Markup: {selectedTradelist.markup}%
+                          </Typography>
+                        </Box>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<SortIcon />}
+                          onClick={handleSortTradelistItems}
+                        >
+                          Sort
+                        </Button>
+                      </Box>
+
+                      <List sx={{ maxHeight: 600, overflow: 'auto' }}>
+                        {selectedTradelist.items.map((item, index) => {
+                          const itemData = getItemFromDatabase(item.id);
+                          const iconPath = itemData?.icon ? getItemIconPath(itemData.icon) : null;
+                          const price = itemData?.price ? parseInt(itemData.price) : null;
+                          const markup = parseFloat(selectedTradelist.markup) / 100;
+                          const finalPrice = price ? Math.floor(price * (1 + markup)) : null;
+
+                          return (
+                            <ListItem
+                              key={`${item.id}-${index}`}
+                              draggable
+                              onDragStart={() => handleDragStart(index)}
+                              onDragOver={(e) => handleDragOver(e, index)}
+                              onDragEnd={handleDragEnd}
+                              sx={{
+                                cursor: 'grab',
+                                bgcolor: draggedItemIndex === index ? 'action.hover' : 'transparent',
+                                '&:hover': { bgcolor: 'action.hover' },
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                borderRadius: 1,
+                                mb: 1
+                              }}
+                            >
+                              <DragIndicatorIcon sx={{ mr: 1, color: 'action.disabled' }} />
+                              
+                              {iconPath && (
+                                <Box
+                                  component="img"
+                                  src={`/Icon/${iconPath}.png`}
+                                  alt={item.name}
+                                  sx={{ width: 32, height: 32, mr: 2 }}
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              )}
+                              
+                              <ListItemText
+                                primary={`${item.name} (ID: ${item.id})`}
+                                secondary={finalPrice ? `Price: ${finalPrice.toLocaleString()} adena` : 'Price: N/A'}
+                              />
+                              
+                              <Box>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleMoveItemUp(index)}
+                                  disabled={index === 0}
+                                >
+                                  <ArrowUpwardIcon fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleMoveItemDown(index)}
+                                  disabled={index === selectedTradelist.items.length - 1}
+                                >
+                                  <ArrowDownwardIcon fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleRemoveItemFromTradelist(index)}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Box>
+                            </ListItem>
+                          );
+                        })}
+                      </List>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body1" color="text.secondary" align="center" sx={{ py: 10 }}>
+                        Select a tradelist to view and edit items
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                )}
+              </Grid>
+
+              {/* Right Panel - Add Items */}
+              <Grid item xs={12} md={4}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Add Items
+                    </Typography>
+                    
+                    <TextField
+                      fullWidth
+                      placeholder="Search items to add..."
+                      value={itemSearchTerm}
+                      onChange={(e) => setItemSearchTerm(e.target.value)}
+                      sx={{ mb: 2 }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+
+                    {!selectedTradelist && (
+                      <Alert severity="info" sx={{ mb: 2 }}>
+                        Select a tradelist first
+                      </Alert>
+                    )}
+
+                    <List sx={{ maxHeight: 600, overflow: 'auto' }}>
+                      {itemSearchTerm && filteredItemsForAdd.map((item) => {
+                        const iconPath = item.icon ? getItemIconPath(item.icon) : null;
+                        const price = item.price ? parseInt(item.price) : null;
+
+                        return (
+                          <ListItem
+                            key={item.id}
+                            button
+                            onClick={() => handleAddItemToTradelist(item)}
+                            disabled={!selectedTradelist}
+                            sx={{
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              borderRadius: 1,
+                              mb: 1
+                            }}
+                          >
+                            {iconPath && (
+                              <Box
+                                component="img"
+                                src={`/Icon/${iconPath}.png`}
+                                alt={item.name}
+                                sx={{ width: 32, height: 32, mr: 2 }}
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            )}
+                            
+                            <ListItemText
+                              primary={`${item.name} (ID: ${item.id})`}
+                              secondary={price ? `Base: ${price.toLocaleString()} adena` : 'Price: N/A'}
+                            />
+                            
+                            <IconButton size="small" color="primary">
+                              <AddIcon />
+                            </IconButton>
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+
+                    {itemSearchTerm && filteredItemsForAdd.length === 0 && (
+                      <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
+                        No items found
+                      </Typography>
+                    )}
+
+                    {!itemSearchTerm && (
+                      <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
+                        Start typing to search items
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </Paper>
+        </>
+      )}
+
+      {currentTab === 3 && (
         <Paper elevation={3} sx={{ p: 3 }}>
           <Typography variant="h5" gutterBottom>
             Tools
@@ -1782,6 +2403,28 @@ function App() {
           </Grid>
         </Paper>
       )}
+
+      {/* Duplicate Item Confirmation Dialog */}
+      <Dialog
+        open={duplicateItemDialog.open}
+        onClose={handleCancelDuplicateItem}
+      >
+        <DialogTitle>Duplicate Item</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Item <strong>{duplicateItemDialog.item?.name}</strong> (ID: {duplicateItemDialog.item?.id}) is already in this tradelist.
+          </Typography>
+          <Typography sx={{ mt: 2 }}>
+            Do you want to add it anyway? This will create a duplicate entry.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelDuplicateItem}>Cancel</Button>
+          <Button onClick={handleConfirmDuplicateItem} variant="contained" color="primary">
+            Add Anyway
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={snackbar.open}

@@ -366,6 +366,31 @@ app.delete('/api/delete/item', async (req, res) => {
   }
 });
 
+// Save Merchant Buylists file
+app.post('/api/save/merchant-buylists', async (req, res) => {
+  try {
+    const { content } = req.body;
+    const filePath = path.join(__dirname, './xml/merchant_buylists.xml');
+    
+    // Create backup
+    const backupPath = path.join(__dirname, './xml/merchant_buylists.xml.backup');
+    try {
+      const originalContent = await fs.readFile(filePath, 'utf-8');
+      await fs.writeFile(backupPath, originalContent, 'utf-8');
+    } catch (err) {
+      console.log('No existing merchant_buylists.xml to backup');
+    }
+    
+    // Save new content
+    await fs.writeFile(filePath, content, 'utf-8');
+    
+    res.json({ success: true, message: 'Merchant buylists saved successfully' });
+  } catch (error) {
+    console.error('Error saving merchant buylists:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
