@@ -33,6 +33,7 @@ import {
   ListItemText,
   CircularProgress,
   MenuItem,
+  Menu,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -49,6 +50,7 @@ import {
   Add as AddIcon,
   DragIndicator as DragIndicatorIcon,
   Sort as SortIcon,
+  MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import { parseItemNameFile, parseItemGroupFile, serializeItemNameFile, serializeItemGroupFile, extractIconPath, parseSkillNameFile, parseSkillGrpFile, serializeSkillNameFile, serializeSkillGrpFile, extractSkillIconPath, parseMerchantBuylistsXML, serializeMerchantBuylistsXML, parseItemsXML, getItemIconPath, parseNpcsXML, parseMultisellXML, serializeMultisellXML } from './utils/fileParser';
 
@@ -65,11 +67,16 @@ const stripBrackets = (value) => {
 // Helper to add brackets for storage
 const addBrackets = (value, fieldName) => {
   const bracketFields = ['name', 'additionalname', 'description', 'default_action', 'Tooltip_Texture'];
-  if (bracketFields.includes(fieldName) && value) {
+  if (bracketFields.includes(fieldName)) {
+    // If value is empty or undefined, return empty brackets
+    if (!value || value.trim() === '') {
+      return '[]';
+    }
     const str = String(value);
     if (!str.startsWith('[')) {
       return `[${str}]`;
     }
+    return str;
   }
   return value;
 };
@@ -112,6 +119,8 @@ function App() {
   const [editSkillDialogOpen, setEditSkillDialogOpen] = useState(false);
   const [editingSkillCell, setEditingSkillCell] = useState(null); // { skillId, skillLevel, skillSublevel, field }
   const [editingSkillValue, setEditingSkillValue] = useState('');
+  const [massDuplicateDialogOpen, setMassDuplicateDialogOpen] = useState(false);
+  const [massDuplicateData, setMassDuplicateData] = useState(null);
 
   // Merchant Buylists state
   const [merchantBuylists, setMerchantBuylists] = useState([]);
@@ -132,6 +141,8 @@ function App() {
   const [multisellItemSearchTerm, setMultisellItemSearchTerm] = useState('');
   const [multisellItemPage, setMultisellItemPage] = useState(0);
   const [multisellItemRowsPerPage, setMultisellItemRowsPerPage] = useState(20);
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [selectedMenuItem, setSelectedMenuItem] = useState(null);
 
   // Load data from files
   useEffect(() => {
@@ -146,8 +157,7 @@ function App() {
     if (searchTerm) {
       filtered = filtered.filter(item =>
         item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.id?.toString().includes(searchTerm) ||
-        item.description?.toLowerCase().includes(searchTerm.toLowerCase())
+        item.id?.toString().includes(searchTerm)
       );
     }
     
@@ -205,8 +215,12 @@ function App() {
     }
     
     setFilteredItems(filtered);
-    setPage(0);
   }, [searchTerm, items, filters, weaponData, armorData, etcData, sortBy, sortDirection]);
+
+  // Reset page when search term or filters change
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, filters, sortBy, sortDirection]);
 
   // Filter skills based on search
   useEffect(() => {
@@ -216,7 +230,6 @@ function App() {
       filtered = filtered.filter(skill =>
         stripBrackets(skill.name || '').toLowerCase().includes(skillSearchTerm.toLowerCase()) ||
         skill.skill_id?.toString().includes(skillSearchTerm) ||
-        stripBrackets(skill.desc || '').toLowerCase().includes(skillSearchTerm.toLowerCase()) ||
         skill.skill_level?.toString().includes(skillSearchTerm)
       );
     }
@@ -785,15 +798,41 @@ function App() {
 
   const handleCellClick = (item, field) => {
     setEditingCell({ itemId: item.id, field });
-    let value = stripBrackets(item[field]) || '';
-    // Convert \n to actual newlines for editing
-    if (field === 'description') {
-      value = value.replace(/\\n/g, '\n');
+    let value;
+    // For weight, get from relatedData
+    if (field === 'weight') {
+      const relatedData = getRelatedItemData(item.id);
+      value = relatedData?.[field] || '';
+    } else {
+      value = stripBrackets(item[field]) || '';
+      // Convert \n to actual newlines for editing
+      if (field === 'description') {
+        value = value.replace(/\\n/g, '\n');
+      }
     }
     setEditingValue(value);
   };
 
   const handleCellSave = (itemId, field, value) => {
+    // Handle weight field separately as it's in relatedData
+    if (field === 'weight') {
+      const relatedData = getRelatedItemData(itemId);
+      if (relatedData) {
+        relatedData[field] = value;
+        // Update the appropriate data array
+        if (relatedData._type === 'weapon') {
+          setWeaponData([...weaponData]);
+        } else if (relatedData._type === 'armor') {
+          setArmorData([...armorData]);
+        } else if (relatedData._type === 'etc') {
+          setEtcData([...etcData]);
+        }
+      }
+      setEditingCell(null);
+      showSnackbar('Weight updated', 'success');
+      return;
+    }
+    
     // Convert actual newlines to \n for storage
     let processedValue = value;
     if (field === 'description') {
@@ -824,6 +863,19 @@ function App() {
     } else if (e.key === 'Escape') {
       setEditingCell(null);
     }
+  };
+
+  const handleToggleField = (itemId, field) => {
+    const updatedItems = items.map(item => {
+      if (item.id === itemId) {
+        const currentValue = item[field];
+        const newValue = currentValue === '1' ? '0' : '1';
+        return { ...item, [field]: newValue };
+      }
+      return item;
+    });
+    setItems(updatedItems);
+    showSnackbar('Field toggled', 'success');
   };
 
   // Skill cell editing handlers
@@ -1216,36 +1268,123 @@ function App() {
   };
 
   const handleDuplicateSkill = (skill) => {
-    const relatedData = getRelatedSkillData(skill.skill_id, skill.skill_level, skill.skill_sublevel);
+    // Get all levels of this skill
+    const allLevels = skills.filter(s => s.skill_id === skill.skill_id);
+    const allLevelsGrp = skillGrpData.filter(s => s.skill_id === skill.skill_id);
     
     // Find max skill_id across all skills
     const allSkillIds = skills.map(s => parseInt(s.skill_id) || 0);
     const maxSkillId = Math.max(...allSkillIds, 0);
     const newSkillId = (maxSkillId + 1).toString();
     
-    const newSkill = {
-      ...skill,
+    // Prepare duplicate data with default values
+    setMassDuplicateData({
+      originalSkillId: skill.skill_id,
+      originalSkillName: stripBrackets(allLevels[0]?.name || skill.name),
+      newSkillId: newSkillId,
+      newSkillName: `Copy of ${stripBrackets(allLevels[0]?.name || skill.name)}`,
+      allLevels: allLevels,
+      allLevelsGrp: allLevelsGrp,
+      mpConsumptionModifier: '0',
+      mpModifierType: 'add', // 'add', 'multiply', or 'set'
+      hpConsumptionModifier: '0',
+      hpModifierType: 'add',
+      castRangeModifier: '0',
+      castRangeModifierType: 'add',
+    });
+    
+    setMassDuplicateDialogOpen(true);
+  };
+
+  const handleConfirmMassDuplicate = () => {
+    if (!massDuplicateData) return;
+    
+    const {
+      newSkillId,
+      newSkillName,
+      allLevels,
+      allLevelsGrp,
+      mpConsumptionModifier,
+      mpModifierType,
+      hpConsumptionModifier,
+      hpModifierType,
+      castRangeModifier,
+      castRangeModifierType,
+    } = massDuplicateData;
+    
+    // Duplicate all skill name entries
+    const newSkills = allLevels.map(s => ({
+      ...s,
       skill_id: newSkillId,
-      skill_level: '1',
-      skill_sublevel: '0',
-      name: `[Copy of ${stripBrackets(skill.name)}]`,
-    };
+      name: `[${newSkillName}]`,
+    }));
     
-    // Add to skills array
-    setSkills(prev => [...prev, newSkill]);
-    
-    // If there's related data, duplicate it too
-    if (relatedData) {
-      const newRelatedData = {
-        ...relatedData,
+    // Duplicate all skill grp entries with modifications
+    const newSkillsGrp = allLevelsGrp.map(s => {
+      const newEntry = {
+        ...s,
         skill_id: newSkillId,
-        skill_level: '1',
-        skill_sublevel: '0',
       };
-      setSkillGrpData(prev => [...prev, newRelatedData]);
-    }
+      
+      // Apply MP consumption modifier
+      if (s.mp_consume && mpConsumptionModifier !== '0') {
+        const currentMP = parseFloat(s.mp_consume) || 0;
+        const modifier = parseFloat(mpConsumptionModifier) || 0;
+        
+        if (mpModifierType === 'add') {
+          newEntry.mp_consume = (currentMP + modifier).toString();
+        } else if (mpModifierType === 'multiply') {
+          newEntry.mp_consume = (currentMP * modifier).toString();
+        } else if (mpModifierType === 'set') {
+          newEntry.mp_consume = modifier.toString();
+        }
+      }
+      
+      // Apply HP consumption modifier
+      if (s.hp_consume && hpConsumptionModifier !== '0') {
+        const currentHP = parseFloat(s.hp_consume) || 0;
+        const modifier = parseFloat(hpConsumptionModifier) || 0;
+        
+        if (hpModifierType === 'add') {
+          newEntry.hp_consume = (currentHP + modifier).toString();
+        } else if (hpModifierType === 'multiply') {
+          newEntry.hp_consume = (currentHP * modifier).toString();
+        } else if (hpModifierType === 'set') {
+          newEntry.hp_consume = modifier.toString();
+        }
+      }
+      
+      // Apply Cast Range modifier
+      if (s.cast_range && castRangeModifier !== '0') {
+        const currentRange = parseFloat(s.cast_range) || 0;
+        const modifier = parseFloat(castRangeModifier) || 0;
+        
+        if (castRangeModifierType === 'add') {
+          newEntry.cast_range = (currentRange + modifier).toString();
+        } else if (castRangeModifierType === 'multiply') {
+          newEntry.cast_range = (currentRange * modifier).toString();
+        } else if (castRangeModifierType === 'set') {
+          newEntry.cast_range = modifier.toString();
+        }
+      }
+      
+      return newEntry;
+    });
     
-    // Set search term to show the duplicated skill
+    // Add to skills arrays
+    setSkills(prev => [...prev, ...newSkills]);
+    setSkillGrpData(prev => [...prev, ...newSkillsGrp]);
+    
+    // Close dialog and show snackbar
+    setMassDuplicateDialogOpen(false);
+    setMassDuplicateData(null);
+    
+    showSnackbar(
+      `Successfully duplicated skill "${newSkillName}" (ID: ${newSkillId}) with ${newSkills.length} level(s). Click Save to persist changes.`, 
+      'success'
+    );
+    
+    // Set search term to show the duplicated skills
     setSkillSearchTerm(newSkillId);
     
     showSnackbar(`Skill duplicated with ID: ${newSkillId}`, 'success');
@@ -1321,7 +1460,20 @@ function App() {
     if (relatedData?.icon) {
       const iconPath = extractIconPath(relatedData.icon);
       if (iconPath) {
-        return `/Icon/${iconPath}.png`;
+        // Check if it's a br_cashtex icon (no subfolder means it's br_cashtex)
+        const isBrCashtex = relatedData.icon.includes('br_cashtex.item.');
+        
+        if (isBrCashtex) {
+          return {
+            primary: `/br_cashtex/item/${iconPath}.png`,
+            fallback: `/Icon/${iconPath}.png`
+          };
+        } else {
+          return {
+            primary: `/Icon/${iconPath}.png`,
+            fallback: `/br_cashtex/item/${iconPath}.png`
+          };
+        }
       }
     }
     return null;
@@ -1372,10 +1524,16 @@ function App() {
                   <Card>
                     <CardContent sx={{ textAlign: 'center' }}>
                       <img
-                        src={iconPreview || iconUrl}
+                        src={iconPreview || iconUrl.primary}
                         alt={currentItem.name}
                         style={{ maxWidth: '64px', maxHeight: '64px' }}
-                        onError={(e) => { e.target.style.display = 'none'; }}
+                        onError={(e) => {
+                          if (!iconPreview && e.target.src === iconUrl.primary) {
+                            e.target.src = iconUrl.fallback;
+                          } else {
+                            e.target.style.display = 'none';
+                          }
+                        }}
                       />
                       <Typography variant="caption" display="block">
                         Icon Preview
@@ -1920,6 +2078,7 @@ function App() {
               <TableCell>Destruct</TableCell>
               <TableCell>Private Store</TableCell>
               <TableCell>NPC Trade</TableCell>
+              <TableCell>Weight</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -1935,10 +2094,16 @@ function App() {
                     <TableCell>
                       {iconUrl && (
                         <img
-                          src={iconUrl}
+                          src={iconUrl.primary}
                           alt={item.name}
                           style={{ width: '32px', height: '32px' }}
-                          onError={(e) => { e.target.style.display = 'none'; }}
+                          onError={(e) => {
+                            if (e.target.src === iconUrl.primary) {
+                              e.target.src = iconUrl.fallback;
+                            } else {
+                              e.target.style.display = 'none';
+                            }
+                          }}
                         />
                       )}
                     </TableCell>
@@ -2025,35 +2190,65 @@ function App() {
                         <Chip label={relatedData._type} size="small" color="secondary" />
                       )}
                     </TableCell>
-                    <TableCell>{item.is_trade === '1' ? '✓' : '✗'}</TableCell>
-                    <TableCell>{item.is_drop === '1' ? '✓' : '✗'}</TableCell>
-                    <TableCell>{item.is_destruct === '1' ? '✓' : '✗'}</TableCell>
-                    <TableCell>{item.is_private_store === '1' ? '✓' : '✗'}</TableCell>
-                    <TableCell>{item.is_npctrade === '1' ? '✓' : '✗'}</TableCell>
+                    <TableCell
+                      onClick={() => handleToggleField(item.id, 'is_trade')}
+                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, textAlign: 'center' }}
+                    >
+                      {item.is_trade === '1' ? '✓' : '✗'}
+                    </TableCell>
+                    <TableCell
+                      onClick={() => handleToggleField(item.id, 'is_drop')}
+                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, textAlign: 'center' }}
+                    >
+                      {item.is_drop === '1' ? '✓' : '✗'}
+                    </TableCell>
+                    <TableCell
+                      onClick={() => handleToggleField(item.id, 'is_destruct')}
+                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, textAlign: 'center' }}
+                    >
+                      {item.is_destruct === '1' ? '✓' : '✗'}
+                    </TableCell>
+                    <TableCell
+                      onClick={() => handleToggleField(item.id, 'is_private_store')}
+                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, textAlign: 'center' }}
+                    >
+                      {item.is_private_store === '1' ? '✓' : '✗'}
+                    </TableCell>
+                    <TableCell
+                      onClick={() => handleToggleField(item.id, 'is_npctrade')}
+                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, textAlign: 'center' }}
+                    >
+                      {item.is_npctrade === '1' ? '✓' : '✗'}
+                    </TableCell>
+                    <TableCell
+                      onClick={() => handleCellClick(item, 'weight')}
+                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                    >
+                      {editingCell?.itemId === item.id && editingCell?.field === 'weight' ? (
+                        <TextField
+                          fullWidth
+                          size="small"
+                          value={editingValue}
+                          onChange={(e) => setEditingValue(e.target.value)}
+                          onBlur={handleCellBlur}
+                          onKeyDown={handleCellKeyDown}
+                          autoFocus
+                          variant="standard"
+                          type="number"
+                        />
+                      ) : (
+                        <Typography variant="body2">{relatedData?.weight || ''}</Typography>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <IconButton
                         size="small"
-                        onClick={() => handleEditClick(item)}
-                        color="primary"
-                        title="Edit"
+                        onClick={(e) => {
+                          setMenuAnchor(e.currentTarget);
+                          setSelectedMenuItem(item);
+                        }}
                       >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDuplicate(item)}
-                        color="secondary"
-                        title="Duplicate"
-                      >
-                        <ContentCopyIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDelete(item)}
-                        color="error"
-                        title="Delete"
-                      >
-                        <DeleteIcon />
+                        <MoreVertIcon />
                       </IconButton>
                     </TableCell>
                   </TableRow>
@@ -2061,6 +2256,39 @@ function App() {
               })}
           </TableBody>
         </Table>
+        <Menu
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor)}
+          onClose={() => setMenuAnchor(null)}
+        >
+          <MenuItem
+            onClick={() => {
+              handleEditClick(selectedMenuItem);
+              setMenuAnchor(null);
+            }}
+          >
+            <EditIcon fontSize="small" sx={{ mr: 1 }} />
+            Edit
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              handleDuplicate(selectedMenuItem);
+              setMenuAnchor(null);
+            }}
+          >
+            <ContentCopyIcon fontSize="small" sx={{ mr: 1 }} />
+            Duplicate
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              handleDelete(selectedMenuItem);
+              setMenuAnchor(null);
+            }}
+          >
+            <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+            Delete
+          </MenuItem>
+        </Menu>
         <TablePagination
           component="div"
           count={filteredItems.length}
@@ -2081,7 +2309,7 @@ function App() {
           <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
             <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
               <TextField
-                placeholder="Search by skill ID, name, or description..."
+                placeholder="Search by skill ID, name, or level..."
                 value={skillSearchTerm}
                 onChange={(e) => setSkillSearchTerm(e.target.value)}
                 sx={{ flexGrow: 1, minWidth: 300 }}
@@ -2347,6 +2575,28 @@ function App() {
                         <Grid item xs={6}>
                           <TextField
                             fullWidth
+                            label="Magic Type"
+                            value={currentSkill._relatedData.MagicType || ''}
+                            onChange={(e) => handleRelatedSkillDataChange('MagicType', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                            helperText="0=Physical, 1=Magic"
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="Operate Type"
+                            value={currentSkill._relatedData.operate_type || ''}
+                            onChange={(e) => handleRelatedSkillDataChange('operate_type', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                            helperText="1=Active, 2=Passive, etc."
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
                             label="MP Consume"
                             value={currentSkill._relatedData.mp_consume || ''}
                             onChange={(e) => handleRelatedSkillDataChange('mp_consume', e.target.value)}
@@ -2425,6 +2675,252 @@ function App() {
               <Button onClick={() => setEditSkillDialogOpen(false)}>Cancel</Button>
               <Button onClick={handleSkillSave} variant="contained" color="primary">
                 Save Changes
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Mass Duplicate Skill Dialog */}
+          <Dialog 
+            open={massDuplicateDialogOpen} 
+            onClose={() => setMassDuplicateDialogOpen(false)} 
+            maxWidth="md" 
+            fullWidth
+          >
+            <DialogTitle>Duplicate Skill with All Levels</DialogTitle>
+            <DialogContent>
+              {massDuplicateData && (
+                <Box sx={{ mt: 2 }}>
+                  <Alert severity="info" sx={{ mb: 3 }}>
+                    This will duplicate all {massDuplicateData.allLevels.length} level(s) of skill "{massDuplicateData.originalSkillName}" 
+                    (ID: {massDuplicateData.originalSkillId}) with the new settings below.
+                  </Alert>
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        label="Original Skill ID"
+                        value={massDuplicateData.originalSkillId}
+                        disabled
+                        variant="outlined"
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        label="New Skill ID"
+                        type="number"
+                        value={massDuplicateData.newSkillId}
+                        onChange={(e) => setMassDuplicateData(prev => ({ ...prev, newSkillId: e.target.value }))}
+                        variant="outlined"
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="New Skill Name"
+                        value={massDuplicateData.newSkillName}
+                        onChange={(e) => setMassDuplicateData(prev => ({ ...prev, newSkillName: e.target.value }))}
+                        variant="outlined"
+                      />
+                    </Grid>
+
+                    <Grid item xs={12}>
+                      <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
+                        Mass Property Modifications
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Apply changes to all {massDuplicateData.allLevelsGrp.length} level(s) at once
+                      </Typography>
+                    </Grid>
+
+                    {/* MP Consumption Modifier */}
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        MP Consumption
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        select
+                        label="Modification Type"
+                        value={massDuplicateData.mpModifierType}
+                        onChange={(e) => setMassDuplicateData(prev => ({ ...prev, mpModifierType: e.target.value }))}
+                        variant="outlined"
+                        size="small"
+                      >
+                        <MenuItem value="add">Add</MenuItem>
+                        <MenuItem value="multiply">Multiply</MenuItem>
+                        <MenuItem value="set">Set to Value</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        label="Value"
+                        type="number"
+                        value={massDuplicateData.mpConsumptionModifier}
+                        onChange={(e) => setMassDuplicateData(prev => ({ ...prev, mpConsumptionModifier: e.target.value }))}
+                        variant="outlined"
+                        size="small"
+                        helperText={
+                          massDuplicateData.mpModifierType === 'add' ? 'Add this value to each level' :
+                          massDuplicateData.mpModifierType === 'multiply' ? 'Multiply each level by this value' :
+                          'Set all levels to this value'
+                        }
+                      />
+                    </Grid>
+
+                    {/* HP Consumption Modifier */}
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        HP Consumption
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        select
+                        label="Modification Type"
+                        value={massDuplicateData.hpModifierType}
+                        onChange={(e) => setMassDuplicateData(prev => ({ ...prev, hpModifierType: e.target.value }))}
+                        variant="outlined"
+                        size="small"
+                      >
+                        <MenuItem value="add">Add</MenuItem>
+                        <MenuItem value="multiply">Multiply</MenuItem>
+                        <MenuItem value="set">Set to Value</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        label="Value"
+                        type="number"
+                        value={massDuplicateData.hpConsumptionModifier}
+                        onChange={(e) => setMassDuplicateData(prev => ({ ...prev, hpConsumptionModifier: e.target.value }))}
+                        variant="outlined"
+                        size="small"
+                        helperText={
+                          massDuplicateData.hpModifierType === 'add' ? 'Add this value to each level' :
+                          massDuplicateData.hpModifierType === 'multiply' ? 'Multiply each level by this value' :
+                          'Set all levels to this value'
+                        }
+                      />
+                    </Grid>
+
+                    {/* Cast Range Modifier */}
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Cast Range
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        select
+                        label="Modification Type"
+                        value={massDuplicateData.castRangeModifierType}
+                        onChange={(e) => setMassDuplicateData(prev => ({ ...prev, castRangeModifierType: e.target.value }))}
+                        variant="outlined"
+                        size="small"
+                      >
+                        <MenuItem value="add">Add</MenuItem>
+                        <MenuItem value="multiply">Multiply</MenuItem>
+                        <MenuItem value="set">Set to Value</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        label="Value"
+                        type="number"
+                        value={massDuplicateData.castRangeModifier}
+                        onChange={(e) => setMassDuplicateData(prev => ({ ...prev, castRangeModifier: e.target.value }))}
+                        variant="outlined"
+                        size="small"
+                        helperText={
+                          massDuplicateData.castRangeModifierType === 'add' ? 'Add this value to each level' :
+                          massDuplicateData.castRangeModifierType === 'multiply' ? 'Multiply each level by this value' :
+                          'Set all levels to this value'
+                        }
+                      />
+                    </Grid>
+
+                    {/* Preview */}
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
+                        Preview (First 5 Levels)
+                      </Typography>
+                      <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Level</TableCell>
+                              <TableCell>MP (Original → New)</TableCell>
+                              <TableCell>HP (Original → New)</TableCell>
+                              <TableCell>Range (Original → New)</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {massDuplicateData.allLevelsGrp.slice(0, 5).map((grpEntry, idx) => {
+                              const origMP = parseFloat(grpEntry.mp_consume) || 0;
+                              const origHP = parseFloat(grpEntry.hp_consume) || 0;
+                              const origRange = parseFloat(grpEntry.cast_range) || 0;
+                              
+                              const mpMod = parseFloat(massDuplicateData.mpConsumptionModifier) || 0;
+                              const hpMod = parseFloat(massDuplicateData.hpConsumptionModifier) || 0;
+                              const rangeMod = parseFloat(massDuplicateData.castRangeModifier) || 0;
+                              
+                              let newMP = origMP;
+                              let newHP = origHP;
+                              let newRange = origRange;
+                              
+                              if (massDuplicateData.mpModifierType === 'add') newMP = origMP + mpMod;
+                              else if (massDuplicateData.mpModifierType === 'multiply') newMP = origMP * mpMod;
+                              else if (massDuplicateData.mpModifierType === 'set') newMP = mpMod;
+                              
+                              if (massDuplicateData.hpModifierType === 'add') newHP = origHP + hpMod;
+                              else if (massDuplicateData.hpModifierType === 'multiply') newHP = origHP * hpMod;
+                              else if (massDuplicateData.hpModifierType === 'set') newHP = hpMod;
+                              
+                              if (massDuplicateData.castRangeModifierType === 'add') newRange = origRange + rangeMod;
+                              else if (massDuplicateData.castRangeModifierType === 'multiply') newRange = origRange * rangeMod;
+                              else if (massDuplicateData.castRangeModifierType === 'set') newRange = rangeMod;
+                              
+                              return (
+                                <TableRow key={idx}>
+                                  <TableCell>{grpEntry.skill_level}</TableCell>
+                                  <TableCell>
+                                    {origMP} → <strong>{newMP.toFixed(0)}</strong>
+                                  </TableCell>
+                                  <TableCell>
+                                    {origHP} → <strong>{newHP.toFixed(0)}</strong>
+                                  </TableCell>
+                                  <TableCell>
+                                    {origRange} → <strong>{newRange.toFixed(0)}</strong>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                      {massDuplicateData.allLevelsGrp.length > 5 && (
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                          Showing first 5 of {massDuplicateData.allLevelsGrp.length} levels
+                        </Typography>
+                      )}
+                    </Grid>
+                  </Grid>
+                </Box>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setMassDuplicateDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleConfirmMassDuplicate} variant="contained" color="primary">
+                Duplicate All Levels
               </Button>
             </DialogActions>
           </Dialog>

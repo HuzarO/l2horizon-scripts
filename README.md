@@ -84,6 +84,20 @@ A full-featured React application for editing game data files:
   - Pagination with configurable rows per page
   - Bulk save operations with automatic backups
 
+- **Skills Editor**: Edit SkillName and Skillgrp files
+  - View and edit skill properties (MP/HP consumption, cast range, etc.)
+  - Search across skill IDs, names, and descriptions
+  - Inline cell editing for quick changes
+  - **Mass Duplicate with Modifications**: Duplicate all levels of a skill at once
+    - Automatically duplicates all levels (1-30, 1-40, etc.) in both files
+    - Assign new skill ID and name
+    - Mass modify MP consumption (add/multiply/set value)
+    - Mass modify HP consumption (add/multiply/set value)
+    - Mass modify cast range (add/multiply/set value)
+    - Live preview showing before/after values for first 5 levels
+  - Icon display with skill icons
+  - Edit individual skill levels or batch operations
+
 - **Tools Tab**: GUI interface for automation scripts
   - Generate SetItemGrp from armor_sets.xml
   - Update name_class values automatically

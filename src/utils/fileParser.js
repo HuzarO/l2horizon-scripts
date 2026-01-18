@@ -129,11 +129,27 @@ export function extractIconPath(iconData) {
   if (!iconData) return null;
   
   // Parse format: {[icon.weapon_small_sword_i00];[None];[None];[None];[None]}
+  // or {[br_cashtex.item.br_cash_pack_of_soulshot_a_i00];[None];[None];[None];[None]}
   const match = iconData.match(/\[([^\]]+)\]/);
   if (match && match[1] !== 'None') {
-    const iconPath = match[1].replace('icon.', '');
+    let iconPath = match[1];
+    let isBrCashtex = false;
     
-    // Determine subfolder based on icon prefix
+    // Check if it's a br_cashtex icon
+    if (iconPath.startsWith('br_cashtex.item.')) {
+      iconPath = iconPath.replace('br_cashtex.item.', '');
+      isBrCashtex = true;
+    } else {
+      // Remove 'icon.' prefix for regular icons
+      iconPath = iconPath.replace('icon.', '');
+    }
+    
+    // For br_cashtex icons, return the path without subfolder
+    if (isBrCashtex) {
+      return iconPath;
+    }
+    
+    // Determine subfolder based on icon prefix for regular icons
     let subfolder = '';
     if (iconPath.startsWith('weapon_')) {
       subfolder = 'weapon_i/';
