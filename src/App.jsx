@@ -81,6 +81,26 @@ const addBrackets = (value, fieldName) => {
   return value;
 };
 
+// Helper to get icon source path
+const getIconSrc = (iconValue, iconPath) => {
+  if (!iconPath) return null;
+  
+  // Check icon type and construct appropriate path
+  if (iconPath.startsWith('BranchIcon/')) {
+    // BranchIcon icons: path already contains folder structure (e.g., BranchIcon/Icon/filename)
+    return `/${iconPath}.png`;
+  } else if (iconValue?.includes('br_cashtex.item.')) {
+    // br_cashtex icons
+    return `/br_cashtex/item/${iconPath}.png`;
+  } else if (iconPath.includes('/')) {
+    // Path already contains subfolder (e.g., weapon_i/weapon_xxx or etc_i/etc_xxx)
+    return `/Icon/${iconPath}.png`;
+  } else {
+    // Root Icon folder (e.g., Item_Normal06)
+    return `/Icon/${iconPath}.png`;
+  }
+};
+
 function App() {
   const [items, setItems] = useState([]);
   const [weaponData, setWeaponData] = useState([]);
@@ -763,7 +783,7 @@ function App() {
     if (field === 'icon') {
       const iconPath = extractIconPath(value);
       if (iconPath) {
-        setIconPreview(`/Icon/${iconPath}.png`);
+        setIconPreview(getIconSrc(value, iconPath));
       }
     }
   };
@@ -799,8 +819,8 @@ function App() {
   const handleCellClick = (item, field) => {
     setEditingCell({ itemId: item.id, field });
     let value;
-    // For weight, get from relatedData
-    if (field === 'weight') {
+    // For weight and tag, get from relatedData
+    if (field === 'weight' || field === 'tag') {
       const relatedData = getRelatedItemData(item.id);
       value = relatedData?.[field] || '';
     } else {
@@ -814,8 +834,8 @@ function App() {
   };
 
   const handleCellSave = (itemId, field, value) => {
-    // Handle weight field separately as it's in relatedData
-    if (field === 'weight') {
+    // Handle weight and tag fields separately as they're in relatedData
+    if (field === 'weight' || field === 'tag') {
       const relatedData = getRelatedItemData(itemId);
       if (relatedData) {
         relatedData[field] = value;
@@ -829,7 +849,7 @@ function App() {
         }
       }
       setEditingCell(null);
-      showSnackbar('Weight updated', 'success');
+      showSnackbar(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`, 'success');
       return;
     }
     
@@ -1261,7 +1281,16 @@ function App() {
     if (relatedData?.icon) {
       const iconPath = extractSkillIconPath(relatedData.icon);
       if (iconPath) {
-        return `/${iconPath}.png`;
+        // Check if path already contains folder structure
+        if (iconPath.startsWith('BranchIcon/')) {
+          return `/${iconPath}.png`;
+        } else if (iconPath.includes('/')) {
+          // Path has subfolder (e.g., skill_i/xxx, etc_i/xxx)
+          return `/Icon/${iconPath}.png`;
+        } else {
+          // Root Icon folder (e.g., Item_Normal06)
+          return `/Icon/${iconPath}.png`;
+        }
       }
     }
     return null;
@@ -1460,20 +1489,11 @@ function App() {
     if (relatedData?.icon) {
       const iconPath = extractIconPath(relatedData.icon);
       if (iconPath) {
-        // Check if it's a br_cashtex icon (no subfolder means it's br_cashtex)
-        const isBrCashtex = relatedData.icon.includes('br_cashtex.item.');
-        
-        if (isBrCashtex) {
-          return {
-            primary: `/br_cashtex/item/${iconPath}.png`,
-            fallback: `/Icon/${iconPath}.png`
-          };
-        } else {
-          return {
-            primary: `/Icon/${iconPath}.png`,
-            fallback: `/br_cashtex/item/${iconPath}.png`
-          };
-        }
+        const iconSrc = getIconSrc(relatedData.icon, iconPath);
+        return {
+          primary: iconSrc,
+          fallback: iconSrc  // Use same path since getIconSrc already handles the correct path
+        };
       }
     }
     return null;
@@ -2073,6 +2093,7 @@ function App() {
               <TableCell>Additional Name</TableCell>
               <TableCell>Description</TableCell>
               <TableCell>Type</TableCell>
+              <TableCell>Tag</TableCell>
               <TableCell>Trade</TableCell>
               <TableCell>Drop</TableCell>
               <TableCell>Destruct</TableCell>
@@ -2188,6 +2209,31 @@ function App() {
                     <TableCell>
                       {relatedData && (
                         <Chip label={relatedData._type} size="small" color="secondary" />
+                      )}
+                    </TableCell>
+                    <TableCell
+                      onClick={() => relatedData?._type === 'etc' && handleCellClick(item, 'tag')}
+                      sx={{ 
+                        cursor: relatedData?._type === 'etc' ? 'pointer' : 'default',
+                        '&:hover': relatedData?._type === 'etc' ? { bgcolor: 'action.hover' } : {}
+                      }}
+                    >
+                      {relatedData?._type === 'etc' && (
+                        editingCell?.itemId === item.id && editingCell?.field === 'tag' ? (
+                          <TextField
+                            fullWidth
+                            size="small"
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onBlur={handleCellBlur}
+                            onKeyDown={handleCellKeyDown}
+                            autoFocus
+                            variant="standard"
+                            type="number"
+                          />
+                        ) : (
+                          <Typography variant="body2">{relatedData?.tag || ''}</Typography>
+                        )
                       )}
                     </TableCell>
                     <TableCell
@@ -3119,10 +3165,12 @@ function App() {
                               {iconPath && (
                                 <Box
                                   component="img"
-                                  src={`/Icon/${iconPath}.png`}
+                                  src={getIconSrc(item.icon, iconPath)}
                                   alt={item.name}
                                   sx={{ width: 32, height: 32, mr: 2 }}
-                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                  }}
                                 />
                               )}
                               
@@ -3221,10 +3269,12 @@ function App() {
                             {iconPath && (
                               <Box
                                 component="img"
-                                src={`/Icon/${iconPath}.png`}
+                                src={getIconSrc(itemData?.icon, iconPath)}
                                 alt={item.name}
                                 sx={{ width: 32, height: 32, mr: 2 }}
-                                onError={(e) => { e.target.style.display = 'none'; }}
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                }}
                               />
                             )}
                             
@@ -3454,10 +3504,12 @@ function App() {
                                       {iconPath && (
                                         <Box
                                           component="img"
-                                          src={`/Icon/${iconPath}.png`}
+                                          src={getIconSrc(itemData?.icon, iconPath)}
                                           alt={itemData?.name || ''}
                                           sx={{ width: 32, height: 32 }}
-                                          onError={(e) => { e.target.style.display = 'none'; }}
+                                          onError={(e) => {
+                                            e.target.style.display = 'none';
+                                          }}
                                         />
                                       )}
                                       <Box sx={{ width: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -3546,10 +3598,12 @@ function App() {
                                       {iconPath && (
                                         <Box
                                           component="img"
-                                          src={`/Icon/${iconPath}.png`}
+                                          src={getIconSrc(itemData?.icon, iconPath)}
                                           alt={itemData?.name || ''}
                                           sx={{ width: 32, height: 32 }}
-                                          onError={(e) => { e.target.style.display = 'none'; }}
+                                          onError={(e) => {
+                                            e.target.style.display = 'none';
+                                          }}
                                         />
                                       )}
                                       <Box sx={{ width: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -3833,10 +3887,12 @@ function App() {
                     {iconPath && (
                       <Box
                         component="img"
-                        src={`/Icon/${iconPath}.png`}
+                        src={getIconSrc(item.icon, iconPath)}
                         alt={item.name}
                         sx={{ width: 32, height: 32, mr: 2 }}
-                        onError={(e) => { e.target.style.display = 'none'; }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
                       />
                     )}
                     <ListItemText

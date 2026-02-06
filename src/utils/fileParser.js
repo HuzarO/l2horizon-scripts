@@ -130,13 +130,21 @@ export function extractIconPath(iconData) {
   
   // Parse format: {[icon.weapon_small_sword_i00];[None];[None];[None];[None]}
   // or {[br_cashtex.item.br_cash_pack_of_soulshot_a_i00];[None];[None];[None];[None]}
+  // or {[BranchIcon.Icon.etc_vip_present_i03];[None];[None];[None];[None]}
   const match = iconData.match(/\[([^\]]+)\]/);
   if (match && match[1] !== 'None') {
     let iconPath = match[1];
     let isBrCashtex = false;
+    let isBranchIcon = false;
     
-    // Check if it's a br_cashtex icon
-    if (iconPath.startsWith('br_cashtex.item.')) {
+    // Check if it's a BranchIcon icon
+    if (iconPath.startsWith('BranchIcon.')) {
+      // BranchIcon.Icon.etc_vip_present_i03 -> BranchIcon/Icon/etc_vip_present_i03
+      // BranchIcon.Panel.filename -> BranchIcon/Panel/filename
+      iconPath = iconPath.replace(/\./g, '/');
+      isBranchIcon = true;
+    } else if (iconPath.startsWith('br_cashtex.item.')) {
+      // Check if it's a br_cashtex icon
       iconPath = iconPath.replace('br_cashtex.item.', '');
       isBrCashtex = true;
     } else {
@@ -144,9 +152,47 @@ export function extractIconPath(iconData) {
       iconPath = iconPath.replace('icon.', '');
     }
     
+    // For BranchIcon icons, return the path as-is (already formatted with slashes)
+    if (isBranchIcon) {
+      return iconPath;
+    }
+    
     // For br_cashtex icons, return the path without subfolder
     if (isBrCashtex) {
       return iconPath;
+    }
+    
+    // Handle item_ prefixed icons (Item_Normal, Item_CanUse, etc.) - they are in the root Icon folder
+    if (iconPath.startsWith('item_')) {
+      // Convert to proper case: item_normal06 -> Item_Normal06, item_canuse28 -> Item_CanUse28
+      const parts = iconPath.split('_');
+      
+      // Special case mappings for known compound words
+      const specialCases = {
+        'canuse': 'CanUse',
+        'normal': 'Normal',
+        'system': 'System',
+        'gragonskill': 'Gragonskill'
+      };
+      
+      const capitalizedParts = parts.map((part, index) => {
+        if (index === 0) {
+          // First part is always 'item' -> 'Item'
+          return 'Item';
+        }
+        // Check if this part (without numbers) is in special cases
+        const textPart = part.replace(/\d+$/, '');
+        const numberPart = part.match(/\d+$/) ? part.match(/\d+$/)[0] : '';
+        
+        if (specialCases[textPart.toLowerCase()]) {
+          return specialCases[textPart.toLowerCase()] + numberPart;
+        }
+        
+        // Default: capitalize first letter
+        return part.charAt(0).toUpperCase() + part.slice(1);
+      });
+      
+      return capitalizedParts.join('_');
     }
     
     // Determine subfolder based on icon prefix for regular icons
@@ -167,7 +213,8 @@ export function extractIconPath(iconData) {
       subfolder = 'accessary_i/';
     } else if (iconPath.startsWith('etc_')) {
       subfolder = 'etc_i/';
-    } else if (iconPath.startsWith('skill_')) {
+    } else if (iconPath.startsWith('skill')) {
+      // Handle both skill_ and skill[number] formats
       subfolder = 'skill_i/';
     } else {
       // Default to etc_i for unknown types
@@ -321,17 +368,77 @@ export function extractSkillIconPath(iconData) {
   // Parse format: [icon.skill0001] or similar
   const match = iconData.match(/\[([^\]]+)\]/);
   if (match && match[1] !== 'None') {
-    const iconPath = match[1].replace('icon.', '');
+    let iconPath = match[1];
+    let isBranchIcon = false;
     
-    // Check if it's in BranchIcon folder (new icons)
-    // BranchIcon icons don't have the icon. prefix typically
-    if (iconPath.startsWith('g_') || iconPath.startsWith('s_g_') || 
-        iconPath.startsWith('etc_') || iconPath.startsWith('skill_')) {
-      return 'BranchIcon/Icon/' + iconPath;
+    // Check if it's a BranchIcon icon
+    if (iconPath.startsWith('BranchIcon.')) {
+      // BranchIcon.Icon.filename -> BranchIcon/Icon/filename
+      iconPath = iconPath.replace(/\./g, '/');
+      return iconPath;
+    } else if (iconPath.startsWith('br_cashtex.item.')) {
+      // br_cashtex icons
+      iconPath = iconPath.replace('br_cashtex.item.', '');
+      return iconPath;
+    } else {
+      // Remove 'icon.' prefix for regular icons
+      iconPath = iconPath.replace('icon.', '');
     }
     
-    // Default to skill_i folder for old format
-    return 'Icon/skill_i/' + iconPath;
+    // Handle item_ prefixed icons (Item_Normal, Item_CanUse, etc.)
+    if (iconPath.startsWith('item_')) {
+      const parts = iconPath.split('_');
+      const specialCases = {
+        'canuse': 'CanUse',
+        'normal': 'Normal',
+        'system': 'System',
+        'gragonskill': 'Gragonskill'
+      };
+      
+      const capitalizedParts = parts.map((part, index) => {
+        if (index === 0) {
+          return 'Item';
+        }
+        const textPart = part.replace(/\d+$/, '');
+        const numberPart = part.match(/\d+$/) ? part.match(/\d+$/)[0] : '';
+        
+        if (specialCases[textPart.toLowerCase()]) {
+          return specialCases[textPart.toLowerCase()] + numberPart;
+        }
+        
+        return part.charAt(0).toUpperCase() + part.slice(1);
+      });
+      
+      return capitalizedParts.join('_');
+    }
+    
+    // Determine subfolder based on icon prefix for regular icons
+    let subfolder = '';
+    if (iconPath.startsWith('weapon_')) {
+      subfolder = 'weapon_i/';
+    } else if (iconPath.startsWith('armor_')) {
+      if (iconPath.includes('_h_')) subfolder = 'helmet_i/';
+      else if (iconPath.includes('_u_')) subfolder = 'upbody_i/';
+      else if (iconPath.includes('_l_')) subfolder = 'lowbody_i/';
+      else if (iconPath.includes('_g_')) subfolder = 'glove_i/';
+      else if (iconPath.includes('_b_')) subfolder = 'boots_i/';
+      else subfolder = 'onepiece/';
+    } else if (iconPath.startsWith('shield_')) {
+      subfolder = 'shield_i/';
+    } else if (iconPath.startsWith('accessory_') || iconPath.startsWith('accessary_')) {
+      subfolder = 'accessary_i/';
+    } else if (iconPath.startsWith('etc_') || iconPath.startsWith('giant_')) {
+      // Handle etc_ and giant_ prefixed icons
+      subfolder = 'etc_i/';
+    } else if (iconPath.startsWith('skill')) {
+      // Handle both skill_ and skill[number] formats
+      subfolder = 'skill_i/';
+    } else {
+      // Default to skill_i for skills (since this is extractSkillIconPath)
+      subfolder = 'skill_i/';
+    }
+    
+    return subfolder + iconPath;
   }
   
   return null;
@@ -518,9 +625,69 @@ export function parseItemsXML(xmlText) {
 export function getItemIconPath(iconValue) {
   if (!iconValue) return null;
   
-  const iconPath = iconValue.replace('icon.', '');
+  let iconPath = iconValue;
+  let isBrCashtex = false;
+  let isBranchIcon = false;
   
-  // Determine subfolder based on icon prefix
+  // Check if it's a BranchIcon icon
+  if (iconPath.startsWith('BranchIcon.')) {
+    // BranchIcon.Icon.etc_vip_present_i03 -> BranchIcon/Icon/etc_vip_present_i03
+    // BranchIcon.Panel.filename -> BranchIcon/Panel/filename
+    iconPath = iconPath.replace(/\./g, '/');
+    isBranchIcon = true;
+  } else if (iconPath.startsWith('br_cashtex.item.')) {
+    // Check if it's a br_cashtex icon
+    iconPath = iconPath.replace('br_cashtex.item.', '');
+    isBrCashtex = true;
+  } else {
+    // Remove 'icon.' prefix for regular icons
+    iconPath = iconPath.replace('icon.', '');
+  }
+  
+  // For BranchIcon icons, return the path as-is (already formatted with slashes)
+  if (isBranchIcon) {
+    return iconPath;
+  }
+  
+  // For br_cashtex icons, return the path without subfolder
+  if (isBrCashtex) {
+    return iconPath;
+  }
+  
+  // Handle item_ prefixed icons (Item_Normal, Item_CanUse, etc.) - they are in the root Icon folder
+  if (iconPath.startsWith('item_')) {
+    // Convert to proper case: item_normal06 -> Item_Normal06, item_canuse28 -> Item_CanUse28
+    const parts = iconPath.split('_');
+    
+    // Special case mappings for known compound words
+    const specialCases = {
+      'canuse': 'CanUse',
+      'normal': 'Normal',
+      'system': 'System',
+      'gragonskill': 'Gragonskill'
+    };
+    
+    const capitalizedParts = parts.map((part, index) => {
+      if (index === 0) {
+        // First part is always 'item' -> 'Item'
+        return 'Item';
+      }
+      // Check if this part (without numbers) is in special cases
+      const textPart = part.replace(/\d+$/, '');
+      const numberPart = part.match(/\d+$/) ? part.match(/\d+$/)[0] : '';
+      
+      if (specialCases[textPart.toLowerCase()]) {
+        return specialCases[textPart.toLowerCase()] + numberPart;
+      }
+      
+      // Default: capitalize first letter
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    });
+    
+    return capitalizedParts.join('_');
+  }
+  
+  // Determine subfolder based on icon prefix for regular icons
   let subfolder = '';
   if (iconPath.startsWith('weapon_')) {
     subfolder = 'weapon_i/';
@@ -538,6 +705,9 @@ export function getItemIconPath(iconValue) {
     subfolder = 'accessary_i/';
   } else if (iconPath.startsWith('etc_')) {
     subfolder = 'etc_i/';
+  } else if (iconPath.startsWith('skill')) {
+    // Handle both skill_ and skill[number] formats
+    subfolder = 'skill_i/';
   } else {
     subfolder = 'etc_i/';
   }
