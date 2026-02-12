@@ -52,7 +52,7 @@ import {
   Sort as SortIcon,
   MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
-import { parseItemNameFile, parseItemGroupFile, serializeItemNameFile, serializeItemGroupFile, extractIconPath, parseSkillNameFile, parseSkillGrpFile, serializeSkillNameFile, serializeSkillGrpFile, extractSkillIconPath, parseMerchantBuylistsXML, serializeMerchantBuylistsXML, parseItemsXML, getItemIconPath, parseNpcsXML, parseMultisellXML, serializeMultisellXML } from './utils/fileParser';
+import { parseItemNameFile, parseItemGroupFile, serializeItemNameFile, serializeItemGroupFile, extractIconPath, parseSkillNameFile, parseSkillGrpFile, serializeSkillNameFile, serializeSkillGrpFile, extractSkillIconPath, parseMerchantBuylistsXML, serializeMerchantBuylistsXML, parseItemsXML, getItemIconPath, parseNpcsXML, serializeNpcsListXML, parseMultisellXML, serializeMultisellXML } from './utils/fileParser';
 
 // Helper to strip brackets for display
 const stripBrackets = (value) => {
@@ -164,6 +164,45 @@ function App() {
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [selectedMenuItem, setSelectedMenuItem] = useState(null);
 
+  // Raw Paste Dialog state
+  const [rawPasteDialogOpen, setRawPasteDialogOpen] = useState(false);
+  const [rawPasteContent, setRawPasteContent] = useState('');
+  const [rawPasteTargetFile, setRawPasteTargetFile] = useState('weapon'); // 'weapon', 'armor', 'etc', 'itemname'
+  const [pasteValidationResult, setPasteValidationResult] = useState(null);
+
+  // XML Paste Dialog state
+  const [xmlPasteDialogOpen, setXmlPasteDialogOpen] = useState(false);
+  const [xmlPasteContent, setXmlPasteContent] = useState('');
+  const [xmlPasteValidationResult, setXmlPasteValidationResult] = useState(null);
+  const [xmlPasteProcessing, setXmlPasteProcessing] = useState(false);
+  const [xmlPasteExpandedFiles, setXmlPasteExpandedFiles] = useState({});
+
+  // NPC state
+  const [npcFiles, setNpcFiles] = useState([]); // List of NPC file ranges loaded
+  const [npcs, setNpcs] = useState([]); // All NPCs from loaded files
+  const [filteredNpcs, setFilteredNpcs] = useState([]);
+  const [npcSearchTerm, setNpcSearchTerm] = useState('');
+  const [npcPage, setNpcPage] = useState(0);
+  const [npcRowsPerPage, setNpcRowsPerPage] = useState(25);
+  const [selectedNpc, setSelectedNpc] = useState(null);
+  const [editNpcDialogOpen, setEditNpcDialogOpen] = useState(false);
+  const [npcFileRange, setNpcFileRange] = useState(''); // Current file range being viewed/edited
+  const [npcFilters, setNpcFilters] = useState({
+    levelMin: '',
+    levelMax: '',
+    types: [] // Array of selected types
+  });
+  const [npcSortBy, setNpcSortBy] = useState(null); // 'id' or 'level'
+  const [npcSortDirection, setNpcSortDirection] = useState('asc'); // 'asc' or 'desc'
+  const [dropStringDialogOpen, setDropStringDialogOpen] = useState(false);
+  const [dropStringData, setDropStringData] = useState({
+    itemId: '',
+    minAmount: '',
+    maxAmount: '',
+    chance: ''
+  });
+  const [generatedDropString, setGeneratedDropString] = useState('');
+
   // Load data from files
   useEffect(() => {
     loadFiles();
@@ -257,6 +296,74 @@ function App() {
     setFilteredSkills(filtered);
     setSkillPage(0);
   }, [skillSearchTerm, skills]);
+
+  // Filter NPCs based on search and filters
+  useEffect(() => {
+    let filtered = npcs;
+    
+    // Apply search filter
+    if (npcSearchTerm) {
+      const searchLower = npcSearchTerm.toLowerCase();
+      filtered = filtered.filter(npc =>
+        npc.id?.toString().includes(npcSearchTerm) ||
+        npc.name?.toLowerCase().includes(searchLower) ||
+        npc.title?.toLowerCase().includes(searchLower) ||
+        npc.sets?.type?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Apply level range filter
+    if (npcFilters.levelMin !== '') {
+      const minLevel = parseInt(npcFilters.levelMin);
+      if (!isNaN(minLevel)) {
+        filtered = filtered.filter(npc => {
+          const npcLevel = parseInt(npc.sets?.level);
+          return !isNaN(npcLevel) && npcLevel >= minLevel;
+        });
+      }
+    }
+    
+    if (npcFilters.levelMax !== '') {
+      const maxLevel = parseInt(npcFilters.levelMax);
+      if (!isNaN(maxLevel)) {
+        filtered = filtered.filter(npc => {
+          const npcLevel = parseInt(npc.sets?.level);
+          return !isNaN(npcLevel) && npcLevel <= maxLevel;
+        });
+      }
+    }
+    
+    // Apply type filter
+    if (npcFilters.types.length > 0) {
+      filtered = filtered.filter(npc =>
+        npcFilters.types.includes(npc.sets?.type)
+      );
+    }
+    
+    // Apply sorting
+    if (npcSortBy) {
+      filtered = [...filtered].sort((a, b) => {
+        let aValue, bValue;
+        
+        if (npcSortBy === 'id') {
+          aValue = parseInt(a.id) || 0;
+          bValue = parseInt(b.id) || 0;
+        } else if (npcSortBy === 'level') {
+          aValue = parseInt(a.sets?.level) || 0;
+          bValue = parseInt(b.sets?.level) || 0;
+        }
+        
+        if (npcSortDirection === 'asc') {
+          return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+        } else {
+          return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+        }
+      });
+    }
+    
+    setFilteredNpcs(filtered);
+    setNpcPage(0);
+  }, [npcSearchTerm, npcs, npcFilters, npcSortBy, npcSortDirection]);
 
   const loadFiles = async () => {
     try {
@@ -411,6 +518,7 @@ function App() {
   const loadNpcsDatabase = async () => {
     try {
       const allNpcs = [];
+      const loadedFiles = [];
       
       // Load NPC files - based on the merchant_buylists.xml, most NPCs are in 30000-32000 range
       const ranges = [
@@ -418,13 +526,29 @@ function App() {
         '8600-8699',
         '12000-12099', '12300-12399', '12500-12599', '12600-12699', '12700-12799',
         '13000-13099', '13100-13199',
+        '14000-14099', '14100-14199', '14200-14299', '14300-14399', '14400-14499',
+        '14500-14599', '14600-14699', '14700-14799', '14800-14899',
+        '16000-16099',
+        '18000-18099', '18100-18199', '18200-18299', '18300-18399',
+        '19600-19699',
+        '20000-20099', '20100-20199', '20200-20299', '20300-20399', '20400-20499',
+        '20500-20599', '20600-20699', '20700-20799', '20800-20899', '20900-20999',
+        '21000-21099', '21100-21199', '21200-21299', '21300-21399', '21400-21499',
+        '21500-21599', '21600-21699', '21700-21799', '21800-21899',
+        '22000-22099', '22100-22199', '22200-22299',
+        '25000-25099', '25100-25199', '25200-25299', '25300-25399', '25400-25499',
+        '25500-25599', '25600-25699',
+        '27000-27099', '27100-27199', '27200-27299', '27300-27399',
+        '29000-29099',
         '30000-30099', '30100-30199', '30200-30299', '30300-30399', '30400-30499',
         '30500-30599', '30600-30699', '30700-30799', '30800-30899', '30900-30999',
         '31000-31099', '31100-31199', '31200-31299', '31300-31399', '31400-31499',
         '31500-31599', '31600-31699', '31700-31799', '31800-31899', '31900-31999',
-        '32000-32099', '32100-32199', '32200-32299',
+        '32000-32099', '32100-32199', '32200-32299', '32400-32499',
         '35000-35099', '35100-35199', '35200-35299', '35300-35399', '35400-35499',
-        '35500-35599', '35600-35699'
+        '35500-35599', '35600-35699',
+        '36400-36499', '36700-36799',
+        '40000-40099'
       ];
       
       for (const range of ranges) {
@@ -432,8 +556,12 @@ function App() {
           const response = await fetch(`/xml/npc/${range}.xml`);
           if (response.ok) {
             const xmlText = await response.text();
-            const npcs = parseNpcsXML(xmlText);
-            allNpcs.push(...npcs);
+            const npcsData = parseNpcsXML(xmlText);
+            npcsData.forEach(npc => {
+              npc._fileRange = range; // Track which file this NPC belongs to
+            });
+            allNpcs.push(...npcsData);
+            loadedFiles.push(range);
           }
         } catch (e) {
           // File doesn't exist, skip
@@ -441,7 +569,10 @@ function App() {
       }
       
       setNpcsDatabase(allNpcs);
-      console.log(`Loaded ${allNpcs.length} NPCs from XML database`);
+      setNpcs(allNpcs);
+      setFilteredNpcs(allNpcs);
+      setNpcFiles(loadedFiles);
+      console.log(`Loaded ${allNpcs.length} NPCs from ${loadedFiles.length} XML files`);
     } catch (error) {
       console.error('Error loading NPCs database:', error);
     }
@@ -760,6 +891,497 @@ function App() {
 
     setMultisellFiles(updatedFiles);
     setSelectedMultisell(updatedMultisell);
+  };
+
+  // NPC Handlers
+  const handleEditNpc = (npc) => {
+    setSelectedNpc({ ...npc });
+    setNpcFileRange(npc._fileRange);
+    setEditNpcDialogOpen(true);
+  };
+
+  const handleNpcChange = (field, value) => {
+    setSelectedNpc(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleNpcSetChange = (setName, value) => {
+    setSelectedNpc(prev => ({
+      ...prev,
+      sets: { ...prev.sets, [setName]: value }
+    }));
+  };
+
+  const handleSaveNpc = () => {
+    const updatedNpcs = npcs.map(npc => 
+      npc.id === selectedNpc.id ? selectedNpc : npc
+    );
+    setNpcs(updatedNpcs);
+    setNpcsDatabase(updatedNpcs);
+    setEditNpcDialogOpen(false);
+    showSnackbar('NPC updated. Click Save to persist changes.', 'info');
+  };
+
+  const handleSaveNpcs = async () => {
+    try {
+      // Group NPCs by file range
+      const npcsByFile = {};
+      npcs.forEach(npc => {
+        const fileRange = npc._fileRange;
+        if (!npcsByFile[fileRange]) {
+          npcsByFile[fileRange] = [];
+        }
+        npcsByFile[fileRange].push(npc);
+      });
+
+      // Save each file
+      let savedCount = 0;
+      for (const [fileRange, npcsInFile] of Object.entries(npcsByFile)) {
+        const xml = serializeNpcsListXML(npcsInFile);
+        
+        const response = await fetch('http://localhost:3001/api/save/npc', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ filename: `${fileRange}.xml`, content: xml }),
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          savedCount++;
+        } else {
+          showSnackbar(`Error saving ${fileRange}.xml: ${result.message}`, 'error');
+          return;
+        }
+      }
+      
+      showSnackbar(`Successfully saved ${savedCount} NPC file(s)!`, 'success');
+    } catch (error) {
+      showSnackbar(`Error saving NPC files: ${error.message}`, 'error');
+    }
+  };
+
+  const handleDeleteNpc = (npc) => {
+    if (!confirm(`Are you sure you want to delete NPC "${npc.name}" (ID: ${npc.id})?`)) {
+      return;
+    }
+
+    const updatedNpcs = npcs.filter(n => n.id !== npc.id);
+    setNpcs(updatedNpcs);
+    setNpcsDatabase(updatedNpcs);
+    showSnackbar('NPC deleted. Click Save to persist changes.', 'info');
+  };
+
+  const handleNpcSort = (column) => {
+    if (npcSortBy === column) {
+      // Toggle direction if clicking same column
+      setNpcSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to ascending
+      setNpcSortBy(column);
+      setNpcSortDirection('asc');
+    }
+  };
+
+  const handleOpenDropStringDialog = () => {
+    setDropStringData({ itemId: '', minAmount: '', maxAmount: '', chance: '' });
+    setGeneratedDropString('');
+    setDropStringDialogOpen(true);
+  };
+
+  const handleGenerateDropString = () => {
+    const { itemId, minAmount, maxAmount, chance } = dropStringData;
+    
+    if (!itemId || !minAmount || !chance) {
+      showSnackbar('Please fill in Item ID, Min Amount, and Chance', 'warning');
+      return;
+    }
+    
+    // Get all NPC IDs from filtered list
+    const npcIds = filteredNpcs.map(npc => npc.id).join(',');
+    
+    // Generate string based on whether maxAmount is provided
+    let dropString;
+    if (maxAmount && maxAmount !== '') {
+      dropString = `${itemId}-${minAmount}-${maxAmount}(${chance})[${npcIds}]`;
+    } else {
+      dropString = `${itemId}-${minAmount}(${chance})[${npcIds}]`;
+    }
+    
+    setGeneratedDropString(dropString);
+  };
+
+  const handleCopyDropString = () => {
+    navigator.clipboard.writeText(generatedDropString);
+    showSnackbar('Drop string copied to clipboard!', 'success');
+  };
+
+  // Raw Paste Handlers
+  const handleOpenRawPasteDialog = () => {
+    setRawPasteContent('');
+    setPasteValidationResult(null);
+    setRawPasteDialogOpen(true);
+  };
+
+  const validateRawPasteContent = (content, targetFileType) => {
+    const errors = [];
+    const warnings = [];
+    const items = [];
+
+    try {
+      // Determine if this is ItemName format or ItemGroup format
+      const isItemName = targetFileType === 'itemname';
+      const endMarker = isItemName ? 'item_name_end' : 'item_end';
+      const beginMarker = isItemName ? 'item_name_begin' : 'item_begin';
+      const idField = isItemName ? 'id' : 'object_id';
+      
+      // Parse the raw content to extract items
+      const blocks = content.split(endMarker).filter(b => b.trim());
+      
+      if (blocks.length === 0) {
+        errors.push('No valid item entries found');
+        return { valid: false, errors, warnings, items };
+      }
+
+      for (let i = 0; i < blocks.length; i++) {
+        const block = blocks[i];
+        if (!block.includes(beginMarker)) {
+          warnings.push(`Block ${i + 1}: Missing ${beginMarker} marker`);
+          continue;
+        }
+
+        const item = {};
+        const parts = block.trim().split(/[\t\n]+/).filter(p => p.trim());
+        
+        for (const part of parts) {
+          if (part.includes('=') && !part.includes(beginMarker) && !part.includes(endMarker)) {
+            const equalIndex = part.indexOf('=');
+            const key = part.substring(0, equalIndex).trim();
+            const value = part.substring(equalIndex + 1).trim();
+            item[key] = value;
+          }
+        }
+
+        if (!item[idField]) {
+          errors.push(`Block ${i + 1}: Missing ${idField} field`);
+        } else {
+          // Check for required fields based on target file type
+          if (isItemName) {
+            const requiredFields = ['name'];
+            const missingFields = requiredFields.filter(field => !item[field]);
+            
+            if (missingFields.length > 0) {
+              warnings.push(`Item ${item[idField]}: Missing required fields: ${missingFields.join(', ')}`);
+            }
+          } else {
+            const requiredFields = ['tag', 'drop_type', 'icon', 'inventory_type'];
+            const missingFields = requiredFields.filter(field => !item[field]);
+            
+            if (missingFields.length > 0) {
+              warnings.push(`Item ${item[idField]}: Missing optional fields: ${missingFields.join(', ')}`);
+            }
+          }
+
+          items.push({ ...item, _type: targetFileType });
+        }
+      }
+
+      return {
+        valid: errors.length === 0,
+        errors,
+        warnings,
+        items
+      };
+    } catch (error) {
+      errors.push(`Parse error: ${error.message}`);
+      return { valid: false, errors, warnings: [], items: [] };
+    }
+  };
+
+  const handleValidateRawPaste = () => {
+    if (!rawPasteContent.trim()) {
+      showSnackbar('Please paste some content first', 'warning');
+      return;
+    }
+
+    const result = validateRawPasteContent(rawPasteContent, rawPasteTargetFile);
+    setPasteValidationResult(result);
+
+    if (result.valid) {
+      showSnackbar(`Validation passed! Found ${result.items.length} valid item(s)`, 'success');
+    } else {
+      showSnackbar(`Validation failed with ${result.errors.length} error(s)`, 'error');
+    }
+  };
+
+  const handleApplyRawPaste = () => {
+    if (!pasteValidationResult || !pasteValidationResult.valid) {
+      showSnackbar('Please validate the content first', 'warning');
+      return;
+    }
+
+    const { items: pastedItems } = pasteValidationResult;
+    let replacedCount = 0;
+    let addedCount = 0;
+
+    // Get the appropriate data array
+    let targetData = [];
+    let setTargetData = null;
+    let idField = 'object_id'; // Default for weapon/armor/etc
+
+    if (rawPasteTargetFile === 'weapon') {
+      targetData = [...weaponData];
+      setTargetData = setWeaponData;
+    } else if (rawPasteTargetFile === 'armor') {
+      targetData = [...armorData];
+      setTargetData = setArmorData;
+    } else if (rawPasteTargetFile === 'etc') {
+      targetData = [...etcData];
+      setTargetData = setEtcData;
+    } else if (rawPasteTargetFile === 'itemname') {
+      targetData = [...items];
+      setTargetData = setItems;
+      idField = 'id'; // ItemName uses 'id' instead of 'object_id'
+    }
+
+    // Process each pasted item
+    pastedItems.forEach(pastedItem => {
+      const existingIndex = targetData.findIndex(item => item[idField] === pastedItem[idField]);
+      
+      if (existingIndex !== -1) {
+        // Replace existing item
+        targetData[existingIndex] = pastedItem;
+        replacedCount++;
+      } else {
+        // Add new item
+        targetData.push(pastedItem);
+        addedCount++;
+      }
+    });
+
+    // Update the state
+    setTargetData(targetData);
+
+    // Close dialog
+    setRawPasteDialogOpen(false);
+    setRawPasteContent('');
+    setPasteValidationResult(null);
+
+    showSnackbar(
+      `Successfully processed ${pastedItems.length} item(s): ${replacedCount} replaced, ${addedCount} added. Click Save to persist changes.`,
+      'success'
+    );
+  };
+
+  // XML Paste handlers
+  const handleOpenXmlPasteDialog = () => {
+    setXmlPasteDialogOpen(true);
+    setXmlPasteContent('');
+    setXmlPasteValidationResult(null);
+    setXmlPasteExpandedFiles({});
+  };
+
+  const validateXmlPasteContent = (content) => {
+    const errors = [];
+    const warnings = [];
+    const items = [];
+
+    try {
+      // Parse XML
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(content, 'text/xml');
+
+      // Check for parse errors
+      const parseError = xmlDoc.querySelector('parsererror');
+      if (parseError) {
+        errors.push('Invalid XML format: ' + parseError.textContent);
+        return { valid: false, errors, warnings, items };
+      }
+
+      // Extract items (weapons, armor, etcitems)
+      const weaponNodes = xmlDoc.querySelectorAll('weapon');
+      const armorNodes = xmlDoc.querySelectorAll('armor');
+      const etcNodes = xmlDoc.querySelectorAll('etcitem');
+
+      if (weaponNodes.length === 0 && armorNodes.length === 0 && etcNodes.length === 0) {
+        errors.push('No valid item elements found (weapon, armor, or etcitem)');
+        return { valid: false, errors, warnings, items };
+      }
+
+      // Process all item types
+      const processNode = (node, type) => {
+        const id = node.getAttribute('id');
+        const name = node.getAttribute('name');
+
+        if (!id) {
+          warnings.push(`${type} element missing 'id' attribute`);
+          return;
+        }
+        if (!name) {
+          warnings.push(`${type} with id=${id} missing 'name' attribute`);
+        }
+
+        // Get the full XML of this item
+        const serializer = new XMLSerializer();
+        const xmlString = serializer.serializeToString(node);
+
+        items.push({
+          id: parseInt(id),
+          name: name || 'Unnamed',
+          type,
+          xml: xmlString
+        });
+      };
+
+      weaponNodes.forEach(node => processNode(node, 'weapon'));
+      armorNodes.forEach(node => processNode(node, 'armor'));
+      etcNodes.forEach(node => processNode(node, 'etcitem'));
+
+      // Sort items by ID
+      items.sort((a, b) => a.id - b.id);
+
+      return {
+        valid: errors.length === 0,
+        errors,
+        warnings,
+        items
+      };
+    } catch (error) {
+      errors.push(`Parse error: ${error.message}`);
+      return { valid: false, errors, warnings: [], items: [] };
+    }
+  };
+
+  const handleValidateXmlPaste = () => {
+    const result = validateXmlPasteContent(xmlPasteContent);
+    setXmlPasteValidationResult(result);
+
+    if (result.valid) {
+      showSnackbar(`Validation successful: ${result.items.length} item(s) found`, 'success');
+    } else {
+      showSnackbar('Validation failed. Please check errors.', 'error');
+    }
+  };
+
+  const handleApplyXmlPaste = async () => {
+    if (!xmlPasteValidationResult || !xmlPasteValidationResult.valid) {
+      showSnackbar('Please validate the content first', 'warning');
+      return;
+    }
+
+    setXmlPasteProcessing(true);
+
+    try {
+      const { items: pastedItems } = xmlPasteValidationResult;
+
+      // Group items by file ranges (100 items per file)
+      const fileGroups = {};
+      pastedItems.forEach(item => {
+        const rangeStart = Math.floor(item.id / 100) * 100;
+        const rangeEnd = rangeStart + 99;
+        const filename = `${rangeStart}-${rangeEnd}.xml`;
+
+        if (!fileGroups[filename]) {
+          fileGroups[filename] = [];
+        }
+        fileGroups[filename].push(item);
+      });
+
+      let totalReplaced = 0;
+      let totalAdded = 0;
+      const filesModified = [];
+
+      // Process each file
+      for (const [filename, itemsForFile] of Object.entries(fileGroups)) {
+        try {
+          // Try to load existing file
+          let existingXmlText = '';
+          let existingItems = [];
+
+          try {
+            const response = await fetch(`/xml/items/${filename}`);
+            if (response.ok) {
+              existingXmlText = await response.text();
+              const parser = new DOMParser();
+              const xmlDoc = parser.parseFromString(existingXmlText, 'text/xml');
+
+              // Extract existing items
+              xmlDoc.querySelectorAll('weapon, armor, etcitem').forEach(node => {
+                const id = parseInt(node.getAttribute('id'));
+                const serializer = new XMLSerializer();
+                const xmlString = serializer.serializeToString(node);
+                existingItems.push({ id, xml: xmlString, node });
+              });
+            }
+          } catch (err) {
+            console.log(`File ${filename} doesn't exist, will create new`);
+          }
+
+          // Merge items: replace existing or add new
+          const itemMap = new Map();
+          existingItems.forEach(item => itemMap.set(item.id, item.xml));
+
+          itemsForFile.forEach(item => {
+            const wasReplaced = itemMap.has(item.id);
+            itemMap.set(item.id, item.xml);
+
+            if (wasReplaced) {
+              totalReplaced++;
+            } else {
+              totalAdded++;
+            }
+          });
+
+          // Sort by ID and build new XML
+          const sortedItems = Array.from(itemMap.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([id, xml]) => xml);
+
+          // Create XML document
+          const newXml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE list SYSTEM "item.dtd">
+
+<list>
+${sortedItems.map(xml => '  ' + xml.replace(/\n/g, '\n  ')).join('\n')}
+</list>
+`;
+
+          // Save to server
+          const saveResponse = await fetch('/api/save/items-xml', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename, content: newXml })
+          });
+
+          if (!saveResponse.ok) {
+            throw new Error(`Failed to save ${filename}`);
+          }
+
+          filesModified.push(filename);
+        } catch (error) {
+          console.error(`Error processing ${filename}:`, error);
+          showSnackbar(`Error processing ${filename}: ${error.message}`, 'error');
+        }
+      }
+
+      // Reload items database
+      await loadItemsDatabase();
+
+      // Close dialog
+      setXmlPasteDialogOpen(false);
+      setXmlPasteContent('');
+      setXmlPasteValidationResult(null);
+
+      showSnackbar(
+        `Successfully processed ${pastedItems.length} item(s) across ${filesModified.length} file(s): ${totalReplaced} replaced, ${totalAdded} added`,
+        'success'
+      );
+    } catch (error) {
+      console.error('Error applying XML paste:', error);
+      showSnackbar(`Error: ${error.message}`, 'error');
+    } finally {
+      setXmlPasteProcessing(false);
+    }
   };
 
   const handleEditClick = (item) => {
@@ -1602,6 +2224,48 @@ function App() {
                             />
                           </Grid>
                         )}
+                        {/* Icon Panel field */}
+                        {currentItem._relatedData.icon_panel !== undefined && (
+                          <Grid item xs={12}>
+                            <TextField
+                              fullWidth
+                              label="Icon Panel"
+                              value={currentItem._relatedData.icon_panel || ''}
+                              onChange={(e) => handleRelatedDataChange('icon_panel', e.target.value)}
+                              variant="outlined"
+                              size="small"
+                              helperText="Format: [icon.panel_2] or [None]"
+                            />
+                          </Grid>
+                        )}
+                        {/* Inventory Type field (for etc items) */}
+                        {currentItem._relatedData.inventory_type !== undefined && (
+                          <Grid item xs={6}>
+                            <TextField
+                              fullWidth
+                              label="Inventory Type"
+                              value={currentItem._relatedData.inventory_type || ''}
+                              onChange={(e) => handleRelatedDataChange('inventory_type', e.target.value)}
+                              variant="outlined"
+                              size="small"
+                              helperText="e.g., quest, consumable, material, etc"
+                            />
+                          </Grid>
+                        )}
+                        {/* Related Quest ID field */}
+                        {currentItem._relatedData.related_quest_id !== undefined && (
+                          <Grid item xs={6}>
+                            <TextField
+                              fullWidth
+                              label="Related Quest ID"
+                              value={currentItem._relatedData.related_quest_id || ''}
+                              onChange={(e) => handleRelatedDataChange('related_quest_id', e.target.value)}
+                              variant="outlined"
+                              size="small"
+                              helperText="Format: {11019} or {}"
+                            />
+                          </Grid>
+                        )}
                         {['durability', 'weight', 'crystallizable', 'mp_consume', 'mp_bonus', 'soulshot_count', 'spiritshot_count'].map(propKey => (
                           currentItem._relatedData[propKey] !== undefined && (
                             <Grid item xs={6} key={propKey}>
@@ -1924,8 +2588,12 @@ function App() {
             variant="contained"
             color="success"
             startIcon={<SaveIcon />}
-            onClick={handleSave}
-            disabled={currentTab === 2}
+            onClick={() => {
+              if (currentTab === 0) handleSave();
+              else if (currentTab === 1) handleSaveSkills();
+              else if (currentTab === 4) handleSaveNpcs();
+            }}
+            disabled={currentTab === 2 || currentTab === 3 || currentTab === 5}
           >
             Save Changes
           </Button>
@@ -1936,6 +2604,7 @@ function App() {
           <Tab label="Skills" />
           <Tab label="Merchant Buylists" />
           <Tab label="Multisell" />
+          <Tab label="NPCs" />
           <Tab label="Tools" icon={<BuildIcon />} iconPosition="start" />
         </Tabs>
       </Paper>
@@ -1958,6 +2627,21 @@ function App() {
               ),
             }}
           />
+          <Button
+            variant="outlined"
+            startIcon={<UploadIcon />}
+            onClick={handleOpenRawPasteDialog}
+          >
+            Paste Raw Data
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<UploadIcon />}
+            onClick={handleOpenXmlPasteDialog}
+            sx={{ ml: 1 }}
+          >
+            Paste XML Items
+          </Button>
         </Box>
 
         <Box sx={{ mb: 2 }}>
@@ -3740,6 +4424,513 @@ function App() {
       )}
 
       {currentTab === 4 && (
+        <>
+          <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h5">NPC Management</Typography>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<AddIcon />}
+                  onClick={handleOpenDropStringDialog}
+                >
+                  Generate Drop String
+                </Button>
+                <Button
+                  variant="contained"
+                  color="success"
+                  startIcon={<SaveIcon />}
+                  onClick={handleSaveNpcs}
+                >
+                  Save NPCs
+                </Button>
+              </Box>
+            </Box>
+
+            <TextField
+              fullWidth
+              placeholder="Search by ID, name, title, or type..."
+              value={npcSearchTerm}
+              onChange={(e) => setNpcSearchTerm(e.target.value)}
+              sx={{ mb: 2 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+            />
+
+            {/* Filters */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  fullWidth
+                  label="Min Level"
+                  type="number"
+                  value={npcFilters.levelMin}
+                  onChange={(e) => setNpcFilters(prev => ({ ...prev, levelMin: e.target.value }))}
+                  size="small"
+                  InputProps={{ inputProps: { min: 1, max: 99 } }}
+                />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField
+                  fullWidth
+                  label="Max Level"
+                  type="number"
+                  value={npcFilters.levelMax}
+                  onChange={(e) => setNpcFilters(prev => ({ ...prev, levelMax: e.target.value }))}
+                  size="small"
+                  InputProps={{ inputProps: { min: 1, max: 99 } }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Type"
+                  value={npcFilters.types}
+                  onChange={(e) => setNpcFilters(prev => ({ ...prev, types: typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value }))}
+                  size="small"
+                  SelectProps={{
+                    multiple: true,
+                    renderValue: (selected) => selected.join(', ')
+                  }}
+                >
+                  {Array.from(new Set(npcs.map(npc => npc.sets?.type).filter(Boolean))).sort().map((type) => (
+                    <MenuItem key={type} value={type}>
+                      <Chip label={type} size="small" color={npcFilters.types.includes(type) ? 'primary' : 'default'} />
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => setNpcFilters({ levelMin: '', levelMax: '', types: [] })}
+                  disabled={npcFilters.levelMin === '' && npcFilters.levelMax === '' && npcFilters.types.length === 0}
+                >
+                  Clear Filters
+                </Button>
+              </Grid>
+            </Grid>
+
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Showing {filteredNpcs.length} of {npcs.length} NPCs from {npcFiles.length} XML files.
+              {npcFilters.types.length > 0 && ` Filtered by type: ${npcFilters.types.join(', ')}.`}
+              {(npcFilters.levelMin !== '' || npcFilters.levelMax !== '') && ` Level range: ${npcFilters.levelMin || '1'}-${npcFilters.levelMax || '99+'}.`}
+            </Alert>
+
+            <TableContainer component={Paper}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell
+                      onClick={() => handleNpcSort('id')}
+                      sx={{ cursor: 'pointer', userSelect: 'none', '&:hover': { bgcolor: 'action.hover' } }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <strong>ID</strong>
+                        {npcSortBy === 'id' && (
+                          npcSortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />
+                        )}
+                      </Box>
+                    </TableCell>
+                    <TableCell><strong>Name</strong></TableCell>
+                    <TableCell><strong>Title</strong></TableCell>
+                    <TableCell><strong>Type</strong></TableCell>
+                    <TableCell
+                      onClick={() => handleNpcSort('level')}
+                      sx={{ cursor: 'pointer', userSelect: 'none', '&:hover': { bgcolor: 'action.hover' } }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <strong>Level</strong>
+                        {npcSortBy === 'level' && (
+                          npcSortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />
+                        )}
+                      </Box>
+                    </TableCell>
+                    <TableCell><strong>AI Type</strong></TableCell>
+                    <TableCell><strong>HP</strong></TableCell>
+                    <TableCell><strong>Skills</strong></TableCell>
+                    <TableCell><strong>Actions</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredNpcs
+                    .slice(npcPage * npcRowsPerPage, npcPage * npcRowsPerPage + npcRowsPerPage)
+                    .map((npc) => (
+                      <TableRow key={npc.id} hover>
+                        <TableCell>{npc.id}</TableCell>
+                        <TableCell>{npc.name}</TableCell>
+                        <TableCell>{npc.title || '-'}</TableCell>
+                        <TableCell>{npc.sets?.type || '-'}</TableCell>
+                        <TableCell>{npc.sets?.level || '-'}</TableCell>
+                        <TableCell>{npc.sets?.ai_type || '-'}</TableCell>
+                        <TableCell>{npc.sets?.baseHpMax || '-'}</TableCell>
+                        <TableCell>{npc.skills?.length || 0}</TableCell>
+                        <TableCell>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditNpc(npc)}
+                            color="primary"
+                            title="Edit"
+                          >
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteNpc(npc)}
+                            color="error"
+                            title="Delete"
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+              <TablePagination
+                component="div"
+                count={filteredNpcs.length}
+                page={npcPage}
+                onPageChange={(e, newPage) => setNpcPage(newPage)}
+                rowsPerPage={npcRowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setNpcRowsPerPage(parseInt(e.target.value, 10));
+                  setNpcPage(0);
+                }}
+                rowsPerPageOptions={[10, 25, 50, 100]}
+              />
+            </TableContainer>
+          </Paper>
+
+          {/* Drop String Generator Dialog */}
+          <Dialog open={dropStringDialogOpen} onClose={() => setDropStringDialogOpen(false)} maxWidth="md" fullWidth>
+            <DialogTitle>Generate Drop String</DialogTitle>
+            <DialogContent>
+              <Box sx={{ mt: 2 }}>
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  This will generate a drop string for all {filteredNpcs.length} filtered NPCs.
+                  Format: itemId-minCount-maxCount(Chance)[NpcId1,NpcId2,...]
+                </Alert>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Item ID"
+                      value={dropStringData.itemId}
+                      onChange={(e) => setDropStringData(prev => ({ ...prev, itemId: e.target.value }))}
+                      variant="outlined"
+                      required
+                      helperText="Required: The item ID to drop"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Chance"
+                      value={dropStringData.chance}
+                      onChange={(e) => setDropStringData(prev => ({ ...prev, chance: e.target.value }))}
+                      variant="outlined"
+                      required
+                      helperText="Required: Drop chance (e.g., 100, 50.5)"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Min Amount"
+                      type="number"
+                      value={dropStringData.minAmount}
+                      onChange={(e) => setDropStringData(prev => ({ ...prev, minAmount: e.target.value }))}
+                      variant="outlined"
+                      required
+                      InputProps={{ inputProps: { min: 1 } }}
+                      helperText="Required: Minimum drop amount"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Max Amount"
+                      type="number"
+                      value={dropStringData.maxAmount}
+                      onChange={(e) => setDropStringData(prev => ({ ...prev, maxAmount: e.target.value }))}
+                      variant="outlined"
+                      InputProps={{ inputProps: { min: 1 } }}
+                      helperText="Optional: Maximum drop amount"
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      onClick={handleGenerateDropString}
+                      disabled={!dropStringData.itemId || !dropStringData.minAmount || !dropStringData.chance || filteredNpcs.length === 0}
+                    >
+                      Generate String
+                    </Button>
+                  </Grid>
+
+                  {generatedDropString && (
+                    <>
+                      <Grid item xs={12}>
+                        <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+                          Generated Drop String:
+                        </Typography>
+                        <Paper sx={{ p: 2, bgcolor: '#f5f5f5', border: '1px solid #ddd', position: 'relative' }}>
+                          <Typography
+                            variant="body2"
+                            component="pre"
+                            sx={{
+                              fontFamily: 'monospace',
+                              fontSize: '0.875rem',
+                              wordBreak: 'break-all',
+                              whiteSpace: 'pre-wrap',
+                              m: 0,
+                              color: '#000'
+                            }}
+                          >
+                            {generatedDropString}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          startIcon={<ContentCopyIcon />}
+                          onClick={handleCopyDropString}
+                        >
+                          Copy to Clipboard
+                        </Button>
+                      </Grid>
+                    </>
+                  )}
+                </Grid>
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setDropStringDialogOpen(false)}>Close</Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Edit NPC Dialog */}
+          <Dialog open={editNpcDialogOpen} onClose={() => setEditNpcDialogOpen(false)} maxWidth="lg" fullWidth>
+            <DialogTitle>Edit NPC: {selectedNpc?.name} (ID: {selectedNpc?.id})</DialogTitle>
+            <DialogContent>
+              {selectedNpc && (
+                <Box sx={{ mt: 2 }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={4}>
+                      <TextField
+                        fullWidth
+                        label="ID"
+                        value={selectedNpc.id || ''}
+                        disabled
+                        variant="outlined"
+                      />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <TextField
+                        fullWidth
+                        label="Name"
+                        value={selectedNpc.name || ''}
+                        onChange={(e) => handleNpcChange('name', e.target.value)}
+                        variant="outlined"
+                      />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <TextField
+                        fullWidth
+                        label="Title"
+                        value={selectedNpc.title || ''}
+                        onChange={(e) => handleNpcChange('title', e.target.value)}
+                        variant="outlined"
+                      />
+                    </Grid>
+
+                    <Grid item xs={12}>
+                      <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
+                        NPC Properties
+                      </Typography>
+                    </Grid>
+
+                    {/* Common NPC properties */}
+                    {selectedNpc.sets && (
+                      <>
+                        <Grid item xs={6} md={4}>
+                          <TextField
+                            fullWidth
+                            label="Type"
+                            value={selectedNpc.sets.type || ''}
+                            onChange={(e) => handleNpcSetChange('type', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                            helperText="Monster, NPC, etc."
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={4}>
+                          <TextField
+                            fullWidth
+                            label="Level"
+                            value={selectedNpc.sets.level || ''}
+                            onChange={(e) => handleNpcSetChange('level', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={4}>
+                          <TextField
+                            fullWidth
+                            label="AI Type"
+                            value={selectedNpc.sets.ai_type || ''}
+                            onChange={(e) => handleNpcSetChange('ai_type', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={4}>
+                          <TextField
+                            fullWidth
+                            label="Base HP Max"
+                            value={selectedNpc.sets.baseHpMax || ''}
+                            onChange={(e) => handleNpcSetChange('baseHpMax', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={4}>
+                          <TextField
+                            fullWidth
+                            label="Base MP Max"
+                            value={selectedNpc.sets.baseMpMax || ''}
+                            onChange={(e) => handleNpcSetChange('baseMpMax', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={4}>
+                          <TextField
+                            fullWidth
+                            label="Base P. Atk"
+                            value={selectedNpc.sets.basePAtk || ''}
+                            onChange={(e) => handleNpcSetChange('basePAtk', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={4}>
+                          <TextField
+                            fullWidth
+                            label="Base M. Atk"
+                            value={selectedNpc.sets.baseMAtk || ''}
+                            onChange={(e) => handleNpcSetChange('baseMAtk', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={4}>
+                          <TextField
+                            fullWidth
+                            label="Base P. Def"
+                            value={selectedNpc.sets.basePDef || ''}
+                            onChange={(e) => handleNpcSetChange('basePDef', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={4}>
+                          <TextField
+                            fullWidth
+                            label="Base M. Def"
+                            value={selectedNpc.sets.baseMDef || ''}
+                            onChange={(e) => handleNpcSetChange('baseMDef', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={4}>
+                          <TextField
+                            fullWidth
+                            label="Exp Reward"
+                            value={selectedNpc.sets.rewardExp || ''}
+                            onChange={(e) => handleNpcSetChange('rewardExp', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={4}>
+                          <TextField
+                            fullWidth
+                            label="SP Reward"
+                            value={selectedNpc.sets.rewardSp || ''}
+                            onChange={(e) => handleNpcSetChange('rewardSp', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={4}>
+                          <TextField
+                            fullWidth
+                            label="Aggro Range"
+                            value={selectedNpc.sets.aggroRange || ''}
+                            onChange={(e) => handleNpcSetChange('aggroRange', e.target.value)}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Grid>
+                      </>
+                    )}
+
+                    <Grid item xs={12}>
+                      <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
+                        Skills ({selectedNpc.skills?.length || 0})
+                      </Typography>
+                      {selectedNpc.skills && selectedNpc.skills.length > 0 && (
+                        <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                          {selectedNpc.skills.map((skill, idx) => (
+                            <Chip
+                              key={idx}
+                              label={`Skill ${skill.id} (Lv ${skill.level})`}
+                              size="small"
+                              sx={{ m: 0.5 }}
+                            />
+                          ))}
+                        </Box>
+                      )}
+                    </Grid>
+
+                    <Grid item xs={12}>
+                      <Typography variant="h6" gutterBottom color="primary" sx={{ mt: 2 }}>
+                        All Properties
+                      </Typography>
+                      <Typography variant="body2" component="pre" sx={{ fontSize: '0.75rem', overflow: 'auto', maxHeight: 300, bgcolor: 'grey.100', p: 2, borderRadius: 1 }}>
+                        {JSON.stringify(selectedNpc, null, 2)}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </Box>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setEditNpcDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleSaveNpc} variant="contained" color="primary" startIcon={<SaveIcon />}>
+                Save Changes
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </>
+      )}
+
+      {currentTab === 5 && (
         <Paper elevation={3} sx={{ p: 3 }}>
           <Typography variant="h5" gutterBottom>
             Tools
@@ -3929,6 +5120,406 @@ function App() {
         <DialogActions>
           <Button onClick={() => setMultisellItemSearchDialog({ open: false, type: null, itemIndex: null })}>
             Cancel
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Raw Paste Dialog */}
+      <Dialog
+        open={rawPasteDialogOpen}
+        onClose={() => setRawPasteDialogOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>Paste Raw Item Data</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Paste raw item data from txt files (Armorgrp, Weapongrp, or EtcItemgrp).
+              The system will validate the format and check for existing items by object_id.
+            </Typography>
+
+            <Box sx={{ mt: 2, mb: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Target File Type:
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Chip
+                  label={`ItemName (${items.length})`}
+                  onClick={() => setRawPasteTargetFile('itemname')}
+                  color={rawPasteTargetFile === 'itemname' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'itemname' ? 'filled' : 'outlined'}
+                />
+                {['weapon', 'armor', 'etc'].map(type => (
+                  <Chip
+                    key={type}
+                    label={`${type.charAt(0).toUpperCase() + type.slice(1)} (${type === 'weapon' ? weaponData.length : type === 'armor' ? armorData.length : etcData.length})`}
+                    onClick={() => setRawPasteTargetFile(type)}
+                    color={rawPasteTargetFile === type ? 'primary' : 'default'}
+                    variant={rawPasteTargetFile === type ? 'filled' : 'outlined'}
+                  />
+                ))}
+              </Box>
+            </Box>
+
+            <TextField
+              fullWidth
+              multiline
+              rows={15}
+              placeholder={rawPasteTargetFile === 'itemname' ? 
+                "Paste raw ItemName data here...\n\nExample:\nitem_name_begin\tid=17\tname=[Wooden Arrow]\tadditionalname=[]\tdescription=[An arrow made of wood...]\tpopup=-1\tdefault_action=[action_equip]\t...\titem_name_end" :
+                "Paste raw item data here...\n\nExample:\nitem_begin\ttag=1\tobject_id=9391\tdrop_type=0\ticon={[icon.accessary_human_circlet_i00];[None];[None];[None];[None]}\tdurability=-1\tweight=10\tmaterial_type=wood\t...\titem_end"}
+              value={rawPasteContent}
+              onChange={(e) => setRawPasteContent(e.target.value)}
+              variant="outlined"
+              sx={{ 
+                fontFamily: 'monospace',
+                fontSize: '0.85rem',
+                '& .MuiInputBase-input': {
+                  fontFamily: 'monospace',
+                }
+              }}
+            />
+
+            {pasteValidationResult && (
+              <Box sx={{ mt: 2 }}>
+                <Alert severity={pasteValidationResult.valid ? 'success' : 'error'} sx={{ mb: 2 }}>
+                  {pasteValidationResult.valid ? (
+                    <Typography variant="body2">
+                      ✓ Validation passed! Found <strong>{pasteValidationResult.items.length}</strong> valid item(s)
+                    </Typography>
+                  ) : (
+                    <Typography variant="body2">
+                      ✗ Validation failed with <strong>{pasteValidationResult.errors.length}</strong> error(s)
+                    </Typography>
+                  )}
+                </Alert>
+
+                {pasteValidationResult.errors.length > 0 && (
+                  <Card variant="outlined" sx={{ mb: 2, bgcolor: '#ffebee' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" color="error" gutterBottom>
+                        Errors:
+                      </Typography>
+                      <List dense>
+                        {pasteValidationResult.errors.map((error, idx) => (
+                          <ListItem key={idx} sx={{ py: 0 }}>
+                            <ListItemText
+                              primary={error}
+                              primaryTypographyProps={{
+                                variant: 'body2',
+                                color: 'error'
+                              }}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {pasteValidationResult.warnings.length > 0 && (
+                  <Card variant="outlined" sx={{ mb: 2, bgcolor: '#fff3e0' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" color="warning.main" gutterBottom>
+                        Warnings:
+                      </Typography>
+                      <List dense>
+                        {pasteValidationResult.warnings.map((warning, idx) => (
+                          <ListItem key={idx} sx={{ py: 0 }}>
+                            <ListItemText
+                              primary={warning}
+                              primaryTypographyProps={{
+                                variant: 'body2',
+                                color: 'warning.main'
+                              }}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {pasteValidationResult.valid && pasteValidationResult.items.length > 0 && (
+                  <Card variant="outlined" sx={{ bgcolor: '#e8f5e9' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" color="success.main" gutterBottom>
+                        Items to process:
+                      </Typography>
+                      <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                        {pasteValidationResult.items.map((item, idx) => {
+                          const idField = rawPasteTargetFile === 'itemname' ? 'id' : 'object_id';
+                          const targetData = rawPasteTargetFile === 'weapon' ? weaponData :
+                                           rawPasteTargetFile === 'armor' ? armorData :
+                                           rawPasteTargetFile === 'etc' ? etcData : items;
+                          const exists = targetData.some(existing => existing[idField] === item[idField]);
+                          
+                          return (
+                            <Chip
+                              key={idx}
+                              label={`ID: ${item[idField]} ${exists ? '(will replace)' : '(new)'}`}
+                              size="small"
+                              color={exists ? 'warning' : 'success'}
+                              sx={{ m: 0.5 }}
+                            />
+                          );
+                        })}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                )}
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRawPasteDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleValidateRawPaste} 
+            variant="outlined"
+            disabled={!rawPasteContent.trim()}
+          >
+            Validate
+          </Button>
+          <Button 
+            onClick={handleApplyRawPaste} 
+            variant="contained" 
+            color="primary"
+            disabled={!pasteValidationResult || !pasteValidationResult.valid}
+          >
+            Apply
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* XML Paste Dialog */}
+      <Dialog
+        open={xmlPasteDialogOpen}
+        onClose={() => !xmlPasteProcessing && setXmlPasteDialogOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>Paste XML Item Data</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Paste raw XML item data from xml/items/*.xml files.
+              The system will validate the XML format, extract items, and automatically save them to the correct files based on ID ranges (100 items per file).
+            </Typography>
+
+            <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
+              <Typography variant="body2">
+                <strong>File naming convention:</strong> Items are automatically organized by ID ranges (0-99.xml, 100-199.xml, etc.).
+                If a file doesn't exist, it will be created automatically.
+              </Typography>
+            </Alert>
+
+            <TextField
+              fullWidth
+              multiline
+              rows={15}
+              placeholder={`Paste XML item data here...\n\nExample:\n<weapon id="1" name="Short Sword">\n  <set name="crystal_type" value="NONE"/>\n  <set name="icon" value="icon.weapon_small_sword_i00"/>\n  <set name="price" value="768"/>\n  <set name="type" value="SWORD"/>\n  ...\n</weapon>\n\nYou can paste multiple items at once (weapon, armor, or etcitem elements).`}
+              value={xmlPasteContent}
+              onChange={(e) => setXmlPasteContent(e.target.value)}
+              variant="outlined"
+              disabled={xmlPasteProcessing}
+              sx={{ 
+                fontFamily: 'monospace',
+                fontSize: '0.85rem',
+                '& .MuiInputBase-input': {
+                  fontFamily: 'monospace',
+                }
+              }}
+            />
+
+            {xmlPasteValidationResult && (
+              <Box sx={{ mt: 2 }}>
+                <Alert severity={xmlPasteValidationResult.valid ? 'success' : 'error'} sx={{ mb: 2 }}>
+                  {xmlPasteValidationResult.valid ? (
+                    <Typography variant="body2">
+                      ✓ Validation passed! Found <strong>{xmlPasteValidationResult.items.length}</strong> valid item(s)
+                    </Typography>
+                  ) : (
+                    <Typography variant="body2">
+                      ✗ Validation failed with <strong>{xmlPasteValidationResult.errors.length}</strong> error(s)
+                    </Typography>
+                  )}
+                </Alert>
+
+                {xmlPasteValidationResult.errors.length > 0 && (
+                  <Card variant="outlined" sx={{ mb: 2, bgcolor: '#ffebee' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" color="error" gutterBottom>
+                        Errors:
+                      </Typography>
+                      <List dense>
+                        {xmlPasteValidationResult.errors.map((error, idx) => (
+                          <ListItem key={idx} sx={{ py: 0 }}>
+                            <ListItemText
+                              primary={error}
+                              primaryTypographyProps={{
+                                variant: 'body2',
+                                color: 'error'
+                              }}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {xmlPasteValidationResult.warnings.length > 0 && (
+                  <Card variant="outlined" sx={{ mb: 2, bgcolor: '#fff3e0' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" color="warning.main" gutterBottom>
+                        Warnings:
+                      </Typography>
+                      <List dense>
+                        {xmlPasteValidationResult.warnings.map((warning, idx) => (
+                          <ListItem key={idx} sx={{ py: 0 }}>
+                            <ListItemText
+                              primary={warning}
+                              primaryTypographyProps={{
+                                variant: 'body2',
+                                color: 'warning.main'
+                              }}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {xmlPasteValidationResult.valid && xmlPasteValidationResult.items.length > 0 && (
+                  <Card variant="outlined" sx={{ bgcolor: '#f5f5f5', border: '2px solid #4caf50' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" sx={{ mb: 2, color: '#2e7d32', fontWeight: 'bold' }}>
+                        ✓ Ready to process {xmlPasteValidationResult.items.length} item(s)
+                      </Typography>
+                      <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+                        {/* Group items by file */}
+                        {(() => {
+                          const fileGroups = {};
+                          xmlPasteValidationResult.items.forEach(item => {
+                            const rangeStart = Math.floor(item.id / 100) * 100;
+                            const rangeEnd = rangeStart + 99;
+                            const filename = `${rangeStart}-${rangeEnd}.xml`;
+                            if (!fileGroups[filename]) {
+                              fileGroups[filename] = [];
+                            }
+                            fileGroups[filename].push(item);
+                          });
+
+                          return Object.entries(fileGroups).map(([filename, items]) => {
+                            const isExpanded = xmlPasteExpandedFiles[filename] || false;
+                            const displayItems = isExpanded ? items : items.slice(0, 10);
+                            const hasMore = items.length > 10;
+
+                            return (
+                              <Paper key={filename} sx={{ mb: 2, p: 2, bgcolor: 'white', border: '1px solid #e0e0e0' }} elevation={1}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+                                    📄 {filename}
+                                  </Typography>
+                                  <Chip 
+                                    label={`${items.length} item${items.length > 1 ? 's' : ''}`} 
+                                    size="small" 
+                                    color="primary"
+                                    sx={{ fontWeight: 'bold' }}
+                                  />
+                                </Box>
+                                
+                                <TableContainer>
+                                  <Table size="small">
+                                    <TableHead>
+                                      <TableRow sx={{ bgcolor: '#fafafa' }}>
+                                        <TableCell sx={{ fontWeight: 'bold', width: '80px', color: '#424242' }}>ID</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', width: '100px', color: '#424242' }}>Type</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', color: '#424242' }}>Name</TableCell>
+                                      </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                      {displayItems.map((item, idx) => (
+                                        <TableRow key={idx} hover sx={{ '&:hover': { bgcolor: '#f5f5f5' } }}>
+                                          <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.875rem', color: '#000' }}>
+                                            {item.id}
+                                          </TableCell>
+                                          <TableCell>
+                                            <Chip 
+                                              label={item.type} 
+                                              size="small" 
+                                              color={item.type === 'weapon' ? 'error' : item.type === 'armor' ? 'info' : 'default'}
+                                              sx={{ fontSize: '0.7rem', height: '20px', fontWeight: 'bold' }}
+                                            />
+                                          </TableCell>
+                                          <TableCell sx={{ fontSize: '0.875rem', color: '#212121' }}>
+                                            {item.name}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </TableContainer>
+
+                                {hasMore && (
+                                  <Box sx={{ mt: 1, textAlign: 'center' }}>
+                                    <Button 
+                                      size="small" 
+                                      onClick={() => setXmlPasteExpandedFiles(prev => ({
+                                        ...prev,
+                                        [filename]: !prev[filename]
+                                      }))}
+                                      sx={{ textTransform: 'none', color: '#1976d2', fontWeight: 'medium' }}
+                                    >
+                                      {isExpanded ? 'Show less' : `Show ${items.length - 10} more...`}
+                                    </Button>
+                                  </Box>
+                                )}
+                              </Paper>
+                            );
+                          });
+                        })()}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                )}
+              </Box>
+            )}
+
+            {xmlPasteProcessing && (
+              <Box sx={{ mt: 2, textAlign: 'center' }}>
+                <CircularProgress size={24} sx={{ mr: 1 }} />
+                <Typography variant="body2" display="inline">
+                  Processing and saving items...
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setXmlPasteDialogOpen(false)}
+            disabled={xmlPasteProcessing}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleValidateXmlPaste} 
+            variant="outlined"
+            disabled={!xmlPasteContent.trim() || xmlPasteProcessing}
+          >
+            Validate
+          </Button>
+          <Button 
+            onClick={handleApplyXmlPaste} 
+            variant="contained" 
+            color="primary"
+            disabled={!xmlPasteValidationResult || !xmlPasteValidationResult.valid || xmlPasteProcessing}
+          >
+            Apply & Save
           </Button>
         </DialogActions>
       </Dialog>

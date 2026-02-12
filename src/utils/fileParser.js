@@ -729,13 +729,97 @@ export function parseNpcsXML(xmlText) {
     const npc = {
       id: node.getAttribute('id'),
       name: node.getAttribute('name'),
-      title: node.getAttribute('title')
+      title: node.getAttribute('title') || ''
     };
+    
+    // Parse all <set> elements
+    const sets = {};
+    const setNodes = node.querySelectorAll('set');
+    setNodes.forEach((setNode) => {
+      const name = setNode.getAttribute('name');
+      const value = setNode.getAttribute('value');
+      sets[name] = value;
+    });
+    npc.sets = sets;
+    
+    // Parse skills
+    const skills = [];
+    const skillNodes = node.querySelectorAll('skills > skill');
+    skillNodes.forEach((skillNode) => {
+      skills.push({
+        id: skillNode.getAttribute('id'),
+        level: skillNode.getAttribute('level')
+      });
+    });
+    npc.skills = skills;
+    
+    // Parse attributes
+    const attributes = {};
+    const defenceNodes = node.querySelectorAll('attributes > defence');
+    defenceNodes.forEach((defNode) => {
+      const attr = defNode.getAttribute('attribute');
+      const value = defNode.getAttribute('value');
+      attributes[attr] = value;
+    });
+    npc.attributes = attributes;
     
     npcs.push(npc);
   });
   
   return npcs;
+}
+
+/**
+ * Serialize NPC data back to XML format
+ */
+export function serializeNpcXML(npc) {
+  let xml = `  <npc id="${npc.id}" name="${npc.name}" title="${npc.title || ''}">\n`;
+  
+  // Add sets
+  if (npc.sets && Object.keys(npc.sets).length > 0) {
+    Object.entries(npc.sets).forEach(([name, value]) => {
+      xml += `    <set name="${name}" value="${value}"/>\n`;
+    });
+  }
+  
+  // Add skills
+  if (npc.skills && npc.skills.length > 0) {
+    xml += `    <skills>\n`;
+    npc.skills.forEach((skill) => {
+      xml += `      <skill id="${skill.id}" level="${skill.level}"/>\n`;
+    });
+    xml += `    </skills>\n`;
+  }
+  
+  // Add attributes
+  if (npc.attributes && Object.keys(npc.attributes).length > 0) {
+    xml += `    <attributes>\n`;
+    Object.entries(npc.attributes).forEach(([attr, value]) => {
+      xml += `      <defence attribute="${attr}" value="${value}"/>\n`;
+    });
+    xml += `    </attributes>\n`;
+  }
+  
+  xml += `  </npc>\n`;
+  
+  return xml;
+}
+
+/**
+ * Serialize full NPC list to XML file
+ */
+export function serializeNpcsListXML(npcs) {
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+  xml += `<!DOCTYPE list SYSTEM "npc.dtd">\n\n`;
+  xml += `<list>\n`;
+  
+  npcs.forEach((npc) => {
+    xml += serializeNpcXML(npc);
+  });
+  
+  xml += `</list>\n`;
+  
+  return xml;
 }
 
 /**

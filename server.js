@@ -144,6 +144,31 @@ app.post('/api/save/etc', async (req, res) => {
   }
 });
 
+// Save XML items file
+app.post('/api/save/items-xml', async (req, res) => {
+  try {
+    const { filename, content } = req.body;
+    const filePath = path.join(__dirname, './xml/items', filename);
+    
+    // Create backup
+    const backupPath = path.join(__dirname, './xml/items', `${filename}.backup`);
+    try {
+      const originalContent = await fs.readFile(filePath, 'utf-8');
+      await fs.writeFile(backupPath, originalContent, 'utf-8');
+    } catch (err) {
+      console.log(`No existing ${filename} to backup, creating new file`);
+    }
+    
+    // Save new content
+    await fs.writeFile(filePath, content, 'utf-8');
+    
+    res.json({ success: true, message: `XML items file ${filename} saved successfully` });
+  } catch (error) {
+    console.error('Error saving XML items file:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Delete skill from skill files
 app.delete('/api/delete/skill', async (req, res) => {
   try {
@@ -412,6 +437,31 @@ app.post('/api/save/multisell', async (req, res) => {
     res.json({ success: true, message: 'Multisell file saved successfully' });
   } catch (error) {
     console.error('Error saving multisell file:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save NPC file
+app.post('/api/save/npc', async (req, res) => {
+  try {
+    const { filename, content } = req.body;
+    const filePath = path.join(__dirname, './xml/npc', filename);
+    
+    // Create backup
+    const backupPath = path.join(__dirname, './xml/npc', `${filename}.backup`);
+    try {
+      const originalContent = await fs.readFile(filePath, 'utf-8');
+      await fs.writeFile(backupPath, originalContent, 'utf-8');
+    } catch (err) {
+      console.log(`No existing ${filename} to backup`);
+    }
+    
+    // Save new content
+    await fs.writeFile(filePath, content, 'utf-8');
+    
+    res.json({ success: true, message: `NPC file ${filename} saved successfully` });
+  } catch (error) {
+    console.error('Error saving NPC file:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
