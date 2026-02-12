@@ -1072,6 +1072,10 @@ function App() {
         beginMarker = 'item_begin';
         endMarker = 'item_end';
         idField = 'object_id';
+      } else if (targetFileType === 'eventlookchange') {
+        beginMarker = 'event_look_change_begin';
+        endMarker = 'event_look_change_end';
+        idField = 'event_ave_id';
       } else {
         beginMarker = 'item_begin';
         endMarker = 'item_end';
@@ -1157,7 +1161,7 @@ function App() {
     }
 
     // For files not in state, fetch and check against actual file content
-    if (['additionalitem', 'npcgrp', 'npcname', 'ridedata', 'transformdata', 'skillgrp', 'skillname', 'itemstatdata'].includes(rawPasteTargetFile)) {
+    if (['additionalitem', 'npcgrp', 'npcname', 'ridedata', 'transformdata', 'skillgrp', 'skillname', 'itemstatdata', 'eventlookchange'].includes(rawPasteTargetFile)) {
       try {
         let filePath;
         switch (rawPasteTargetFile) {
@@ -1184,6 +1188,9 @@ function App() {
             break;
           case 'itemstatdata':
             filePath = '/txt/ItemStatData_Classic.txt';
+            break;
+          case 'eventlookchange':
+            filePath = '/txt/EventLookChange.txt';
             break;
         }
 
@@ -1224,6 +1231,10 @@ function App() {
           beginMarker = 'item_begin';
           endMarker = 'item_end';
           idField = 'object_id';
+        } else if (rawPasteTargetFile === 'eventlookchange') {
+          beginMarker = 'event_look_change_begin';
+          endMarker = 'event_look_change_end';
+          idField = 'event_ave_id';
         }
 
         // Parse existing entries
@@ -1322,6 +1333,12 @@ function App() {
         idField = 'object_id';
         endpoint = '/api/save/itemstatdata';
         filePath = '/txt/ItemStatData_Classic.txt';
+      } else if (fileType === 'eventlookchange') {
+        beginMarker = 'event_look_change_begin';
+        endMarker = 'event_look_change_end';
+        idField = 'event_ave_id';
+        endpoint = '/api/save/eventlookchange';
+        filePath = '/txt/EventLookChange.txt';
       }
 
       // Fetch existing file content
@@ -1458,6 +1475,10 @@ function App() {
     } else if (rawPasteTargetFile === 'itemstatdata') {
       showSnackbar('ItemStatData data will be saved directly to file', 'info');
       saveDirectlyToFile(pastedItems, 'itemstatdata');
+      return;
+    } else if (rawPasteTargetFile === 'eventlookchange') {
+      showSnackbar('EventLookChange data will be saved directly to file', 'info');
+      saveDirectlyToFile(pastedItems, 'eventlookchange');
       return;
     }
 
@@ -5533,6 +5554,12 @@ ${sortedItems.map(xml => '  ' + xml.replace(/\n/g, '\n  ')).join('\n')}
                   color={rawPasteTargetFile === 'itemstatdata' ? 'primary' : 'default'}
                   variant={rawPasteTargetFile === 'itemstatdata' ? 'filled' : 'outlined'}
                 />
+                <Chip
+                  label="EventLookChange.txt"
+                  onClick={() => setRawPasteTargetFile('eventlookchange')}
+                  color={rawPasteTargetFile === 'eventlookchange' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'eventlookchange' ? 'filled' : 'outlined'}
+                />
               </Box>
             </Box>
 
@@ -5559,6 +5586,8 @@ ${sortedItems.map(xml => '  ' + xml.replace(/\n/g, '\n  ')).join('\n')}
                   "Paste raw SkillName data here...\n\nExample:\nskill_begin\tskill_id=1\tskill_level=1\tname=[Triple Slash]\tdesc=[...]\t...\tskill_end" :
                 rawPasteTargetFile === 'itemstatdata' ?
                   "Paste raw ItemStatData data here...\n\nExample:\nitem_begin\tobject_id=1\tpDefense=0\tmDefense=0\tpAttack=8\tmAttack=6\t...\titem_end" :
+                rawPasteTargetFile === 'eventlookchange' ?
+                  "Paste raw EventLookChange data here...\n\nExample:\nevent_look_change_begin\tevent_ave_id=36\tpriority=5\tchange_weapon=1\t...\tevent_look_change_end" :
                   "Paste raw item data here...\n\nExample:\nitem_begin\ttag=1\tobject_id=9391\tdrop_type=0\ticon={[icon.accessary_human_circlet_i00];[None];[None];[None];[None]}\tdurability=-1\tweight=10\tmaterial_type=wood\t...\titem_end"
               }
               value={rawPasteContent}
@@ -5646,7 +5675,8 @@ ${sortedItems.map(xml => '  ' + xml.replace(/\n/g, '\n  ')).join('\n')}
                                           rawPasteTargetFile === 'ridedata' ? 'ride_npc_id' :
                                           rawPasteTargetFile === 'transformdata' ? 'transform_id' :
                                           ['skillgrp', 'skillname'].includes(rawPasteTargetFile) ? 'skill_id' :
-                                          rawPasteTargetFile === 'itemstatdata' ? 'object_id' : 'object_id';
+                                          rawPasteTargetFile === 'itemstatdata' ? 'object_id' :
+                                          rawPasteTargetFile === 'eventlookchange' ? 'event_ave_id' : 'object_id';
                           
                           // Check if exists - either from _exists flag (for new file types) or from state data
                           let exists = false;

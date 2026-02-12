@@ -18,8 +18,8 @@ app.use(express.json({ limit: '50mb' }));
 // Helper function to sort txt file entries by ID
 function sortTxtFileById(content, idField = 'id') {
   // Detect markers
-  const beginMarkers = ['item_begin', 'item_name_begin', 'skill_begin', 'skill_name_begin', 'npc_begin', 'ride_data_begin', 'transform_data_begin'];
-  const endMarkers = ['item_end', 'item_name_end', 'skill_end', 'skill_name_end', 'npc_end', 'ride_data_end', 'transform_data_end'];
+  const beginMarkers = ['item_begin', 'item_name_begin', 'skill_begin', 'skill_name_begin', 'npc_begin', 'ride_data_begin', 'transform_data_begin', 'event_look_change_begin'];
+  const endMarkers = ['item_end', 'item_name_end', 'skill_end', 'skill_name_end', 'npc_end', 'ride_data_end', 'transform_data_end', 'event_look_change_end'];
   
   let beginMarker = null;
   let endMarker = null;
@@ -303,6 +303,20 @@ app.post('/api/save/itemstatdata', async (req, res) => {
     const sortedContent = sortTxtFileById(content, 'object_id');
     await fs.writeFile(filePath, sortedContent, 'utf-8');
     res.json({ success: true, message: 'ItemStatData file saved successfully' });
+  } catch (error) {
+    console.error('Error saving file:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save EventLookChange file
+app.post('/api/save/eventlookchange', async (req, res) => {
+  try {
+    const { content } = req.body;
+    const filePath = path.join(__dirname, './public/txt/EventLookChange.txt');
+    const sortedContent = sortTxtFileById(content, 'event_ave_id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
+    res.json({ success: true, message: 'EventLookChange file saved successfully' });
   } catch (error) {
     console.error('Error saving file:', error);
     res.status(500).json({ success: false, message: error.message });
