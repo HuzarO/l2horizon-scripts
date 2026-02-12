@@ -15,6 +15,51 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+// Helper function to sort txt file entries by ID
+function sortTxtFileById(content, idField = 'id') {
+  // Detect markers
+  const beginMarkers = ['item_begin', 'item_name_begin', 'skill_begin', 'skill_name_begin', 'npc_begin', 'ride_data_begin', 'transform_data_begin'];
+  const endMarkers = ['item_end', 'item_name_end', 'skill_end', 'skill_name_end', 'npc_end', 'ride_data_end', 'transform_data_end'];
+  
+  let beginMarker = null;
+  let endMarker = null;
+  
+  for (let i = 0; i < beginMarkers.length; i++) {
+    if (content.includes(beginMarkers[i])) {
+      beginMarker = beginMarkers[i];
+      endMarker = endMarkers[i];
+      break;
+    }
+  }
+  
+  if (!beginMarker) {
+    return content; // No markers found, return as is
+  }
+  
+  // Split into header and entries
+  const firstBeginIndex = content.indexOf(beginMarker);
+  const header = content.substring(0, firstBeginIndex);
+  const bodyContent = content.substring(firstBeginIndex);
+  
+  // Split by end marker and filter empty
+  const blocks = bodyContent.split(endMarker).filter(block => block.trim());
+  
+  // Parse blocks and extract IDs
+  const entries = blocks.map(block => {
+    const trimmedBlock = block.trim();
+    const fullBlock = trimmedBlock + '\t' + endMarker;
+    const idMatch = fullBlock.match(new RegExp(`${idField}=(\\d+)`));
+    const id = idMatch ? parseInt(idMatch[1], 10) : 0;
+    return { id, block: fullBlock };
+  });
+  
+  // Sort by ID
+  entries.sort((a, b) => a.id - b.id);
+  
+  // Reconstruct content with newlines between entries
+  return header + entries.map(e => e.block).join('\n');
+}
+
 // Save ItemName file
 app.post('/api/save/itemname', async (req, res) => {
   try {
@@ -30,8 +75,9 @@ app.post('/api/save/itemname', async (req, res) => {
       console.log('No existing file to backup');
     }
     
-    // Save new content
-    await fs.writeFile(filePath, content, 'utf-8');
+    // Sort by ID and save
+    const sortedContent = sortTxtFileById(content, 'id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
     
     res.json({ success: true, message: 'ItemName file saved successfully' });
   } catch (error) {
@@ -55,7 +101,8 @@ app.post('/api/save/all', async (req, res) => {
       } catch (err) {
         console.log('No existing ItemName file to backup');
       }
-      await fs.writeFile(filePath, itemName, 'utf-8');
+      const sortedContent = sortTxtFileById(itemName, 'id');
+      await fs.writeFile(filePath, sortedContent, 'utf-8');
       results.push('ItemName');
     }
     
@@ -68,7 +115,8 @@ app.post('/api/save/all', async (req, res) => {
       } catch (err) {
         console.log('No existing Weapon file to backup');
       }
-      await fs.writeFile(filePath, weapon, 'utf-8');
+      const sortedContent = sortTxtFileById(weapon, 'object_id');
+      await fs.writeFile(filePath, sortedContent, 'utf-8');
       results.push('Weapongrp');
     }
     
@@ -81,7 +129,8 @@ app.post('/api/save/all', async (req, res) => {
       } catch (err) {
         console.log('No existing Armor file to backup');
       }
-      await fs.writeFile(filePath, armor, 'utf-8');
+      const sortedContent = sortTxtFileById(armor, 'object_id');
+      await fs.writeFile(filePath, sortedContent, 'utf-8');
       results.push('Armorgrp');
     }
     
@@ -94,7 +143,8 @@ app.post('/api/save/all', async (req, res) => {
       } catch (err) {
         console.log('No existing Etc file to backup');
       }
-      await fs.writeFile(filePath, etc, 'utf-8');
+      const sortedContent = sortTxtFileById(etc, 'object_id');
+      await fs.writeFile(filePath, sortedContent, 'utf-8');
       results.push('EtcItemgrp');
     }
     
@@ -110,7 +160,8 @@ app.post('/api/save/weapon', async (req, res) => {
   try {
     const { content } = req.body;
     const filePath = path.join(__dirname, './public/txt/Weapongrp_Classic.txt');
-    await fs.writeFile(filePath, content, 'utf-8');
+    const sortedContent = sortTxtFileById(content, 'object_id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
     res.json({ success: true, message: 'Weapon file saved successfully' });
   } catch (error) {
     console.error('Error saving file:', error);
@@ -123,7 +174,8 @@ app.post('/api/save/armor', async (req, res) => {
   try {
     const { content } = req.body;
     const filePath = path.join(__dirname, './public/txt/Armorgrp_Classic.txt');
-    await fs.writeFile(filePath, content, 'utf-8');
+    const sortedContent = sortTxtFileById(content, 'object_id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
     res.json({ success: true, message: 'Armor file saved successfully' });
   } catch (error) {
     console.error('Error saving file:', error);
@@ -136,8 +188,121 @@ app.post('/api/save/etc', async (req, res) => {
   try {
     const { content } = req.body;
     const filePath = path.join(__dirname, './public/txt/EtcItemgrp_Classic.txt');
-    await fs.writeFile(filePath, content, 'utf-8');
+    const sortedContent = sortTxtFileById(content, 'object_id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
     res.json({ success: true, message: 'Etc file saved successfully' });
+  } catch (error) {
+    console.error('Error saving file:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save AdditionalItemGrp file
+app.post('/api/save/additionalitem', async (req, res) => {
+  try {
+    const { content } = req.body;
+    const filePath = path.join(__dirname, './public/txt/AdditionalItemGrp_Classic.txt');
+    const sortedContent = sortTxtFileById(content, 'id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
+    res.json({ success: true, message: 'AdditionalItemGrp file saved successfully' });
+  } catch (error) {
+    console.error('Error saving file:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save Npcgrp file
+app.post('/api/save/npcgrp', async (req, res) => {
+  try {
+    const { content } = req.body;
+    const filePath = path.join(__dirname, './public/txt/Npcgrp_Classic.txt');
+    const sortedContent = sortTxtFileById(content, 'npc_id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
+    res.json({ success: true, message: 'Npcgrp file saved successfully' });
+  } catch (error) {
+    console.error('Error saving file:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save NpcName file
+app.post('/api/save/npcname', async (req, res) => {
+  try {
+    const { content } = req.body;
+    const filePath = path.join(__dirname, './public/txt/NpcName_Classic-eu.txt');
+    const sortedContent = sortTxtFileById(content, 'id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
+    res.json({ success: true, message: 'NpcName file saved successfully' });
+  } catch (error) {
+    console.error('Error saving file:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save RideData file
+app.post('/api/save/ridedata', async (req, res) => {
+  try {
+    const { content } = req.body;
+    const filePath = path.join(__dirname, './public/txt/RideData_Classic.txt');
+    const sortedContent = sortTxtFileById(content, 'ride_npc_id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
+    res.json({ success: true, message: 'RideData file saved successfully' });
+  } catch (error) {
+    console.error('Error saving file:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save TransformData file
+app.post('/api/save/transformdata', async (req, res) => {
+  try {
+    const { content } = req.body;
+    const filePath = path.join(__dirname, './public/txt/TransformData_Classic.txt');
+    const sortedContent = sortTxtFileById(content, 'transform_id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
+    res.json({ success: true, message: 'TransformData file saved successfully' });
+  } catch (error) {
+    console.error('Error saving file:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save Skillgrp file
+app.post('/api/save/skillgrp', async (req, res) => {
+  try {
+    const { content } = req.body;
+    const filePath = path.join(__dirname, './public/txt/Skillgrp_Classic.txt');
+    const sortedContent = sortTxtFileById(content, 'skill_id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
+    res.json({ success: true, message: 'Skillgrp file saved successfully' });
+  } catch (error) {
+    console.error('Error saving file:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save SkillName file
+app.post('/api/save/skillname', async (req, res) => {
+  try {
+    const { content } = req.body;
+    const filePath = path.join(__dirname, './public/txt/SkillName_Classic-eu.txt');
+    const sortedContent = sortTxtFileById(content, 'skill_id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
+    res.json({ success: true, message: 'SkillName file saved successfully' });
+  } catch (error) {
+    console.error('Error saving file:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save ItemStatData file
+app.post('/api/save/itemstatdata', async (req, res) => {
+  try {
+    const { content } = req.body;
+    const filePath = path.join(__dirname, './public/txt/ItemStatData_Classic.txt');
+    const sortedContent = sortTxtFileById(content, 'object_id');
+    await fs.writeFile(filePath, sortedContent, 'utf-8');
+    res.json({ success: true, message: 'ItemStatData file saved successfully' });
   } catch (error) {
     console.error('Error saving file:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -268,7 +433,8 @@ app.post('/api/save/skills', async (req, res) => {
       } catch (err) {
         console.log('No existing SkillName file to backup');
       }
-      await fs.writeFile(filePath, skillName, 'utf-8');
+      const sortedContent = sortTxtFileById(skillName, 'id');
+      await fs.writeFile(filePath, sortedContent, 'utf-8');
       results.push('SkillName');
     }
     
@@ -281,7 +447,8 @@ app.post('/api/save/skills', async (req, res) => {
       } catch (err) {
         console.log('No existing Skillgrp file to backup');
       }
-      await fs.writeFile(filePath, skillGrp, 'utf-8');
+      const sortedContent = sortTxtFileById(skillGrp, 'skill_id');
+      await fs.writeFile(filePath, sortedContent, 'utf-8');
       results.push('Skillgrp');
     }
     

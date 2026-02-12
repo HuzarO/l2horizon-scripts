@@ -1029,11 +1029,54 @@ function App() {
     const items = [];
 
     try {
-      // Determine if this is ItemName format or ItemGroup format
-      const isItemName = targetFileType === 'itemname';
-      const endMarker = isItemName ? 'item_name_end' : 'item_end';
-      const beginMarker = isItemName ? 'item_name_begin' : 'item_begin';
-      const idField = isItemName ? 'id' : 'object_id';
+      // Determine file type specific markers and fields
+      let endMarker, beginMarker, idField;
+      
+      if (targetFileType === 'itemname') {
+        beginMarker = 'item_name_begin';
+        endMarker = 'item_name_end';
+        idField = 'id';
+      } else if (['weapon', 'armor', 'etc'].includes(targetFileType)) {
+        beginMarker = 'item_begin';
+        endMarker = 'item_end';
+        idField = 'object_id';
+      } else if (targetFileType === 'additionalitem') {
+        beginMarker = 'item_begin';
+        endMarker = 'item_end';
+        idField = 'id';
+      } else if (targetFileType === 'npcgrp') {
+        beginMarker = 'npc_begin';
+        endMarker = 'npc_end';
+        idField = 'npc_id';
+      } else if (targetFileType === 'npcname') {
+        beginMarker = 'npc_begin';
+        endMarker = 'npc_end';
+        idField = 'id';
+      } else if (targetFileType === 'ridedata') {
+        beginMarker = 'ride_data_begin';
+        endMarker = 'ride_data_end';
+        idField = 'ride_npc_id';
+      } else if (targetFileType === 'transformdata') {
+        beginMarker = 'transform_data_begin';
+        endMarker = 'transform_data_end';
+        idField = 'transform_id';
+      } else if (targetFileType === 'skillgrp') {
+        beginMarker = 'skill_begin';
+        endMarker = 'skill_end';
+        idField = 'skill_id';
+      } else if (targetFileType === 'skillname') {
+        beginMarker = 'skill_begin';
+        endMarker = 'skill_end';
+        idField = 'skill_id';
+      } else if (targetFileType === 'itemstatdata') {
+        beginMarker = 'item_begin';
+        endMarker = 'item_end';
+        idField = 'object_id';
+      } else {
+        beginMarker = 'item_begin';
+        endMarker = 'item_end';
+        idField = 'object_id';
+      }
       
       // Parse the raw content to extract items
       const blocks = content.split(endMarker).filter(b => b.trim());
@@ -1066,14 +1109,14 @@ function App() {
           errors.push(`Block ${i + 1}: Missing ${idField} field`);
         } else {
           // Check for required fields based on target file type
-          if (isItemName) {
+          if (targetFileType === 'itemname' || targetFileType === 'npcname') {
             const requiredFields = ['name'];
             const missingFields = requiredFields.filter(field => !item[field]);
             
             if (missingFields.length > 0) {
-              warnings.push(`Item ${item[idField]}: Missing required fields: ${missingFields.join(', ')}`);
+              warnings.push(`${targetFileType === 'npcname' ? 'NPC' : 'Item'} ${item[idField]}: Missing required fields: ${missingFields.join(', ')}`);
             }
-          } else {
+          } else if (['weapon', 'armor', 'etc'].includes(targetFileType)) {
             const requiredFields = ['tag', 'drop_type', 'icon', 'inventory_type'];
             const missingFields = requiredFields.filter(field => !item[field]);
             
@@ -1081,6 +1124,7 @@ function App() {
               warnings.push(`Item ${item[idField]}: Missing optional fields: ${missingFields.join(', ')}`);
             }
           }
+          // For additionalitem and npcgrp, we don't enforce specific required fields beyond ID
 
           items.push({ ...item, _type: targetFileType });
         }
@@ -1098,19 +1142,259 @@ function App() {
     }
   };
 
-  const handleValidateRawPaste = () => {
+  const handleValidateRawPaste = async () => {
     if (!rawPasteContent.trim()) {
       showSnackbar('Please paste some content first', 'warning');
       return;
     }
 
     const result = validateRawPasteContent(rawPasteContent, rawPasteTargetFile);
+    
+    if (!result.valid) {
+      setPasteValidationResult(result);
+      showSnackbar(`Validation failed with ${result.errors.length} error(s)`, 'error');
+      return;
+    }
+
+    // For files not in state, fetch and check against actual file content
+    if (['additionalitem', 'npcgrp', 'npcname', 'ridedata', 'transformdata', 'skillgrp', 'skillname', 'itemstatdata'].includes(rawPasteTargetFile)) {
+      try {
+        let filePath;
+        switch (rawPasteTargetFile) {
+          case 'additionalitem':
+            filePath = '/txt/AdditionalItemGrp_Classic.txt';
+            break;
+          case 'npcgrp':
+            filePath = '/txt/Npcgrp_Classic.txt';
+            break;
+          case 'npcname':
+            filePath = '/txt/NpcName_Classic-eu.txt';
+            break;
+          case 'ridedata':
+            filePath = '/txt/RideData_Classic.txt';
+            break;
+          case 'transformdata':
+            filePath = '/txt/TransformData_Classic.txt';
+            break;
+          case 'skillgrp':
+            filePath = '/txt/Skillgrp_Classic.txt';
+            break;
+          case 'skillname':
+            filePath = '/txt/SkillName_Classic-eu.txt';
+            break;
+          case 'itemstatdata':
+            filePath = '/txt/ItemStatData_Classic.txt';
+            break;
+        }
+
+        const fetchResponse = await fetch(filePath);
+        const existingContent = await fetchResponse.text();
+
+        // Determine the appropriate markers and ID field
+        let beginMarker, endMarker, idField;
+        if (rawPasteTargetFile === 'additionalitem') {
+          beginMarker = 'item_begin';
+          endMarker = 'item_end';
+          idField = 'id';
+        } else if (rawPasteTargetFile === 'npcgrp') {
+          beginMarker = 'npc_begin';
+          endMarker = 'npc_end';
+          idField = 'npc_id';
+        } else if (rawPasteTargetFile === 'npcname') {
+          beginMarker = 'npc_begin';
+          endMarker = 'npc_end';
+          idField = 'id';
+        } else if (rawPasteTargetFile === 'ridedata') {
+          beginMarker = 'ride_data_begin';
+          endMarker = 'ride_data_end';
+          idField = 'ride_npc_id';
+        } else if (rawPasteTargetFile === 'transformdata') {
+          beginMarker = 'transform_data_begin';
+          endMarker = 'transform_data_end';
+          idField = 'transform_id';
+        } else if (rawPasteTargetFile === 'skillgrp') {
+          beginMarker = 'skill_begin';
+          endMarker = 'skill_end';
+          idField = 'skill_id';
+        } else if (rawPasteTargetFile === 'skillname') {
+          beginMarker = 'skill_begin';
+          endMarker = 'skill_end';
+          idField = 'skill_id';
+        } else if (rawPasteTargetFile === 'itemstatdata') {
+          beginMarker = 'item_begin';
+          endMarker = 'item_end';
+          idField = 'object_id';
+        }
+
+        // Parse existing entries
+        const existingItems = [];
+        const blocks = existingContent.split(endMarker).filter(b => b.trim());
+        
+        for (const block of blocks) {
+          if (!block.includes(beginMarker)) continue;
+          
+          const item = {};
+          const parts = block.trim().split(/[\t\n]+/).filter(p => p.trim());
+          
+          for (const part of parts) {
+            if (part.includes('=') && !part.includes(beginMarker) && !part.includes(endMarker)) {
+              const [key, ...valueParts] = part.split('=');
+              item[key.trim()] = valueParts.join('=').trim();
+            }
+          }
+          
+          if (Object.keys(item).length > 0) {
+            existingItems.push(item);
+          }
+        }
+
+        // Mark which items exist
+        result.items.forEach(item => {
+          const exists = existingItems.some(existing => existing[idField] === item[idField]);
+          item._exists = exists;
+        });
+
+      } catch (error) {
+        console.error('Error checking existing file:', error);
+        // Continue without marking existing items
+      }
+    }
+
     setPasteValidationResult(result);
 
     if (result.valid) {
       showSnackbar(`Validation passed! Found ${result.items.length} valid item(s)`, 'success');
     } else {
       showSnackbar(`Validation failed with ${result.errors.length} error(s)`, 'error');
+    }
+  };
+
+  const saveDirectlyToFile = async (pastedItems, fileType) => {
+    try {
+      // Determine markers, ID field, and file paths based on file type
+      let beginMarker, endMarker, idField, endpoint, filePath;
+      
+      if (fileType === 'additionalitem') {
+        beginMarker = 'item_begin';
+        endMarker = 'item_end';
+        idField = 'id';
+        endpoint = '/api/save/additionalitem';
+        filePath = '/txt/AdditionalItemGrp_Classic.txt';
+      } else if (fileType === 'npcgrp') {
+        beginMarker = 'npc_begin';
+        endMarker = 'npc_end';
+        idField = 'npc_id';
+        endpoint = '/api/save/npcgrp';
+        filePath = '/txt/Npcgrp_Classic.txt';
+      } else if (fileType === 'npcname') {
+        beginMarker = 'npc_begin';
+        endMarker = 'npc_end';
+        idField = 'id';
+        endpoint = '/api/save/npcname';
+        filePath = '/txt/NpcName_Classic-eu.txt';
+      } else if (fileType === 'ridedata') {
+        beginMarker = 'ride_data_begin';
+        endMarker = 'ride_data_end';
+        idField = 'ride_npc_id';
+        endpoint = '/api/save/ridedata';
+        filePath = '/txt/RideData_Classic.txt';
+      } else if (fileType === 'transformdata') {
+        beginMarker = 'transform_data_begin';
+        endMarker = 'transform_data_end';
+        idField = 'transform_id';
+        endpoint = '/api/save/transformdata';
+        filePath = '/txt/TransformData_Classic.txt';
+      } else if (fileType === 'skillgrp') {
+        beginMarker = 'skill_begin';
+        endMarker = 'skill_end';
+        idField = 'skill_id';
+        endpoint = '/api/save/skillgrp';
+        filePath = '/txt/Skillgrp_Classic.txt';
+      } else if (fileType === 'skillname') {
+        beginMarker = 'skill_begin';
+        endMarker = 'skill_end';
+        idField = 'skill_id';
+        endpoint = '/api/save/skillname';
+        filePath = '/txt/SkillName_Classic-eu.txt';
+      } else if (fileType === 'itemstatdata') {
+        beginMarker = 'item_begin';
+        endMarker = 'item_end';
+        idField = 'object_id';
+        endpoint = '/api/save/itemstatdata';
+        filePath = '/txt/ItemStatData_Classic.txt';
+      }
+
+      // Fetch existing file content
+      const fetchResponse = await fetch(filePath);
+      const existingContent = await fetchResponse.text();
+
+      // Parse existing entries
+      const existingItems = [];
+      const blocks = existingContent.split(endMarker).filter(b => b.trim());
+      
+      for (const block of blocks) {
+        if (!block.includes(beginMarker)) continue;
+        
+        const item = {};
+        const parts = block.trim().split(/[\t\n]+/).filter(p => p.trim());
+        
+        for (const part of parts) {
+          if (part.includes('=') && !part.includes(beginMarker) && !part.includes(endMarker)) {
+            const [key, ...valueParts] = part.split('=');
+            item[key.trim()] = valueParts.join('=').trim();
+          }
+        }
+        
+        if (Object.keys(item).length > 0) {
+          existingItems.push(item);
+        }
+      }
+
+      // Merge: replace existing or add new
+      let replacedCount = 0;
+      let addedCount = 0;
+      
+      pastedItems.forEach(pastedItem => {
+        const existingIndex = existingItems.findIndex(item => item[idField] === pastedItem[idField]);
+        
+        if (existingIndex !== -1) {
+          existingItems[existingIndex] = pastedItem;
+          replacedCount++;
+        } else {
+          existingItems.push(pastedItem);
+          addedCount++;
+        }
+      });
+
+      // Convert all items back to raw text format
+      const content = existingItems.map(item => {
+        const fields = Object.entries(item)
+          .filter(([key]) => !key.startsWith('_'))
+          .map(([key, value]) => `${key}=${value}`)
+          .join('\t');
+        return `${beginMarker}\t${fields}\t${endMarker}`;
+      }).join('\n');
+
+      // Send to server
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save ${fileType}`);
+      }
+
+      showSnackbar(
+        `Successfully saved to ${fileType}: ${replacedCount} replaced, ${addedCount} added`,
+        'success'
+      );
+      setRawPasteDialogOpen(false);
+      setRawPasteContent('');
+      setPasteValidationResult(null);
+    } catch (error) {
+      showSnackbar(`Error saving ${fileType}: ${error.message}`, 'error');
     }
   };
 
@@ -1141,7 +1425,40 @@ function App() {
     } else if (rawPasteTargetFile === 'itemname') {
       targetData = [...items];
       setTargetData = setItems;
-      idField = 'id'; // ItemName uses 'id' instead of 'object_id'
+      idField = 'id';
+    } else if (rawPasteTargetFile === 'additionalitem') {
+      // Note: AdditionalItemGrp data would need to be loaded separately if not already in state
+      showSnackbar('AdditionalItemGrp data will be saved directly to file', 'info');
+      saveDirectlyToFile(pastedItems, 'additionalitem');
+      return;
+    } else if (rawPasteTargetFile === 'npcgrp') {
+      showSnackbar('Npcgrp data will be saved directly to file', 'info');
+      saveDirectlyToFile(pastedItems, 'npcgrp');
+      return;
+    } else if (rawPasteTargetFile === 'npcname') {
+      showSnackbar('NpcName data will be saved directly to file', 'info');
+      saveDirectlyToFile(pastedItems, 'npcname');
+      return;
+    } else if (rawPasteTargetFile === 'ridedata') {
+      showSnackbar('RideData data will be saved directly to file', 'info');
+      saveDirectlyToFile(pastedItems, 'ridedata');
+      return;
+    } else if (rawPasteTargetFile === 'transformdata') {
+      showSnackbar('TransformData data will be saved directly to file', 'info');
+      saveDirectlyToFile(pastedItems, 'transformdata');
+      return;
+    } else if (rawPasteTargetFile === 'skillgrp') {
+      showSnackbar('Skillgrp data will be saved directly to file', 'info');
+      saveDirectlyToFile(pastedItems, 'skillgrp');
+      return;
+    } else if (rawPasteTargetFile === 'skillname') {
+      showSnackbar('SkillName data will be saved directly to file', 'info');
+      saveDirectlyToFile(pastedItems, 'skillname');
+      return;
+    } else if (rawPasteTargetFile === 'itemstatdata') {
+      showSnackbar('ItemStatData data will be saved directly to file', 'info');
+      saveDirectlyToFile(pastedItems, 'itemstatdata');
+      return;
     }
 
     // Process each pasted item
@@ -5145,20 +5462,77 @@ ${sortedItems.map(xml => '  ' + xml.replace(/\n/g, '\n  ')).join('\n')}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                 <Chip
-                  label={`ItemName (${items.length})`}
+                  label={`ItemName_Classic-eu.txt (${items.length})`}
                   onClick={() => setRawPasteTargetFile('itemname')}
                   color={rawPasteTargetFile === 'itemname' ? 'primary' : 'default'}
                   variant={rawPasteTargetFile === 'itemname' ? 'filled' : 'outlined'}
                 />
-                {['weapon', 'armor', 'etc'].map(type => (
-                  <Chip
-                    key={type}
-                    label={`${type.charAt(0).toUpperCase() + type.slice(1)} (${type === 'weapon' ? weaponData.length : type === 'armor' ? armorData.length : etcData.length})`}
-                    onClick={() => setRawPasteTargetFile(type)}
-                    color={rawPasteTargetFile === type ? 'primary' : 'default'}
-                    variant={rawPasteTargetFile === type ? 'filled' : 'outlined'}
-                  />
-                ))}
+                <Chip
+                  label={`Weapongrp_Classic.txt (${weaponData.length})`}
+                  onClick={() => setRawPasteTargetFile('weapon')}
+                  color={rawPasteTargetFile === 'weapon' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'weapon' ? 'filled' : 'outlined'}
+                />
+                <Chip
+                  label={`Armorgrp_Classic.txt (${armorData.length})`}
+                  onClick={() => setRawPasteTargetFile('armor')}
+                  color={rawPasteTargetFile === 'armor' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'armor' ? 'filled' : 'outlined'}
+                />
+                <Chip
+                  label={`EtcItemgrp_Classic.txt (${etcData.length})`}
+                  onClick={() => setRawPasteTargetFile('etc')}
+                  color={rawPasteTargetFile === 'etc' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'etc' ? 'filled' : 'outlined'}
+                />
+                <Chip
+                  label="AdditionalItemGrp_Classic.txt"
+                  onClick={() => setRawPasteTargetFile('additionalitem')}
+                  color={rawPasteTargetFile === 'additionalitem' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'additionalitem' ? 'filled' : 'outlined'}
+                />
+                <Chip
+                  label="Npcgrp_Classic.txt"
+                  onClick={() => setRawPasteTargetFile('npcgrp')}
+                  color={rawPasteTargetFile === 'npcgrp' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'npcgrp' ? 'filled' : 'outlined'}
+                />
+                <Chip
+                  label="NpcName_Classic-eu.txt"
+                  onClick={() => setRawPasteTargetFile('npcname')}
+                  color={rawPasteTargetFile === 'npcname' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'npcname' ? 'filled' : 'outlined'}
+                />
+                <Chip
+                  label="RideData_Classic.txt"
+                  onClick={() => setRawPasteTargetFile('ridedata')}
+                  color={rawPasteTargetFile === 'ridedata' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'ridedata' ? 'filled' : 'outlined'}
+                />
+                <Chip
+                  label="TransformData_Classic.txt"
+                  onClick={() => setRawPasteTargetFile('transformdata')}
+                  color={rawPasteTargetFile === 'transformdata' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'transformdata' ? 'filled' : 'outlined'}
+                />
+                <Chip
+                  label="Skillgrp_Classic.txt"
+                  onClick={() => setRawPasteTargetFile('skillgrp')}
+                  color={rawPasteTargetFile === 'skillgrp' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'skillgrp' ? 'filled' : 'outlined'}
+                />
+                <Chip
+                  label="SkillName_Classic-eu.txt"
+                  onClick={() => setRawPasteTargetFile('skillname')}
+                  color={rawPasteTargetFile === 'skillname' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'skillname' ? 'filled' : 'outlined'}
+                />
+                <Chip
+                  label="ItemStatData_Classic.txt"
+                  onClick={() => setRawPasteTargetFile('itemstatdata')}
+                  color={rawPasteTargetFile === 'itemstatdata' ? 'primary' : 'default'}
+                  variant={rawPasteTargetFile === 'itemstatdata' ? 'filled' : 'outlined'}
+                />
               </Box>
             </Box>
 
@@ -5166,9 +5540,27 @@ ${sortedItems.map(xml => '  ' + xml.replace(/\n/g, '\n  ')).join('\n')}
               fullWidth
               multiline
               rows={15}
-              placeholder={rawPasteTargetFile === 'itemname' ? 
-                "Paste raw ItemName data here...\n\nExample:\nitem_name_begin\tid=17\tname=[Wooden Arrow]\tadditionalname=[]\tdescription=[An arrow made of wood...]\tpopup=-1\tdefault_action=[action_equip]\t...\titem_name_end" :
-                "Paste raw item data here...\n\nExample:\nitem_begin\ttag=1\tobject_id=9391\tdrop_type=0\ticon={[icon.accessary_human_circlet_i00];[None];[None];[None];[None]}\tdurability=-1\tweight=10\tmaterial_type=wood\t...\titem_end"}
+              placeholder={
+                rawPasteTargetFile === 'itemname' ? 
+                  "Paste raw ItemName data here...\n\nExample:\nitem_name_begin\tid=17\tname=[Wooden Arrow]\tadditionalname=[]\tdescription=[An arrow made of wood...]\tpopup=-1\tdefault_action=[action_equip]\t...\titem_name_end" :
+                rawPasteTargetFile === 'npcname' ?
+                  "Paste raw NpcName data here...\n\nExample:\nnpc_begin\tid=20001\tname=[Gremlin]\tnick=[]\tnickcolor=9CE8A9FF\tnpc_end" :
+                rawPasteTargetFile === 'npcgrp' ?
+                  "Paste raw Npcgrp data here...\n\nExample:\nnpc_begin\tnpc_id=20001\tclass_name=[LineageMonster.gremlin]\tmesh_name=[LineageMonsters.gremlin_m00]\t...\tnpc_end" :
+                rawPasteTargetFile === 'additionalitem' ?
+                  "Paste raw AdditionalItemGrp data here...\n\nExample:\nitem_begin\tid=17\thas_ani=0\tinclude_item={}\tmax_energy=-1\tlookchange=0\t...\titem_end" :
+                rawPasteTargetFile === 'ridedata' ?
+                  "Paste raw RideData data here...\n\nExample:\nride_data_begin\tride_type=1\tride_npc_id=12526\tattach_bone_name=[Bone15]\t...\tride_data_end" :
+                rawPasteTargetFile === 'transformdata' ?
+                  "Paste raw TransformData data here...\n\nExample:\ntransform_data_begin\ttransform_id=1\tgender=0\tnpc_id=13077\t...\ttransform_data_end" :
+                rawPasteTargetFile === 'skillgrp' ?
+                  "Paste raw Skillgrp data here...\n\nExample:\nskill_begin\tskill_id=1\tskill_level=1\ticon_type=3\tMagicType=0\t...\tskill_end" :
+                rawPasteTargetFile === 'skillname' ?
+                  "Paste raw SkillName data here...\n\nExample:\nskill_begin\tskill_id=1\tskill_level=1\tname=[Triple Slash]\tdesc=[...]\t...\tskill_end" :
+                rawPasteTargetFile === 'itemstatdata' ?
+                  "Paste raw ItemStatData data here...\n\nExample:\nitem_begin\tobject_id=1\tpDefense=0\tmDefense=0\tpAttack=8\tmAttack=6\t...\titem_end" :
+                  "Paste raw item data here...\n\nExample:\nitem_begin\ttag=1\tobject_id=9391\tdrop_type=0\ticon={[icon.accessary_human_circlet_i00];[None];[None];[None];[None]}\tdurability=-1\tweight=10\tmaterial_type=wood\t...\titem_end"
+              }
               value={rawPasteContent}
               onChange={(e) => setRawPasteContent(e.target.value)}
               variant="outlined"
@@ -5249,11 +5641,24 @@ ${sortedItems.map(xml => '  ' + xml.replace(/\n/g, '\n  ')).join('\n')}
                       </Typography>
                       <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
                         {pasteValidationResult.items.map((item, idx) => {
-                          const idField = rawPasteTargetFile === 'itemname' ? 'id' : 'object_id';
-                          const targetData = rawPasteTargetFile === 'weapon' ? weaponData :
-                                           rawPasteTargetFile === 'armor' ? armorData :
-                                           rawPasteTargetFile === 'etc' ? etcData : items;
-                          const exists = targetData.some(existing => existing[idField] === item[idField]);
+                          const idField = ['itemname', 'additionalitem', 'npcname'].includes(rawPasteTargetFile) ? 'id' : 
+                                          rawPasteTargetFile === 'npcgrp' ? 'npc_id' : 
+                                          rawPasteTargetFile === 'ridedata' ? 'ride_npc_id' :
+                                          rawPasteTargetFile === 'transformdata' ? 'transform_id' :
+                                          ['skillgrp', 'skillname'].includes(rawPasteTargetFile) ? 'skill_id' :
+                                          rawPasteTargetFile === 'itemstatdata' ? 'object_id' : 'object_id';
+                          
+                          // Check if exists - either from _exists flag (for new file types) or from state data
+                          let exists = false;
+                          if (item._exists !== undefined) {
+                            exists = item._exists;
+                          } else {
+                            const targetData = rawPasteTargetFile === 'weapon' ? weaponData :
+                                             rawPasteTargetFile === 'armor' ? armorData :
+                                             rawPasteTargetFile === 'etc' ? etcData : 
+                                             rawPasteTargetFile === 'itemname' ? items : [];
+                            exists = targetData.length > 0 ? targetData.some(existing => existing[idField] === item[idField]) : false;
+                          }
                           
                           return (
                             <Chip
